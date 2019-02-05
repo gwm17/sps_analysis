@@ -48,8 +48,12 @@ fit::fit(int n) : //n is number of fits
     c.push_back(0.0);
   }
 }
-//Make a cut on the 2D histo to specify region of interest
-//Loops over number of cuts specified in constructor
+
+/*cut
+ *Method for making cuts on the theta_notilt histogram
+ *Makes one for each polynomial
+ *Also names the Cuts appropriately
+ */
 void fit::cut(char* storageName) {
   TFile *storage = new TFile(storageName, "READ");
   TCanvas *c1 = new TCanvas();
@@ -97,6 +101,12 @@ Float_t fit::interp(Float_t x, Float_t theta) {
   return value; 
 }
 
+/*Untilt
+ *Takes data from original raw data file, sorts it based on cuts from histo file
+ *makes a linear fit through x|theta and then sends data to flat line (untilted)
+ *centered about 0. The new data is filled into a histogram and a tree written to
+ *the fitting file
+ */
 void fit::untilt(char* dataName,char* storageName, char* histoName) {
   TFile *data = new TFile(dataName, "READ");
   TFile *histo = new TFile(histoName, "READ");
@@ -169,7 +179,13 @@ void fit::untilt(char* dataName,char* storageName, char* histoName) {
   storage->Close();
 }
 
-//Fill a TGraph with the region of interest and then do fit of choice
+/*sort
+ *Takes untilted data set and takes slices from cut to 
+ *make TGraphs of all of the regions for fitting
+ *TGraphs are then individually fitted with a 3rd order polynomial
+ *The number of polynomials is as usual the number specified in the 
+ *constructor
+ */
 void fit::sort(char* storageName) {
   TFile *storage = new TFile(storageName, "UPDATE");
   TTree *tree = (TTree*) storage->Get("corr_data");
@@ -201,6 +217,12 @@ void fit::sort(char* storageName) {
   storage->Close();
 }
 
+/*correct
+ *Takes the untilted data and now subtracts 
+ *the inerpolated position from the polynomials
+ *from the actual position of each datum
+ *Corrected data is then written to file with a few histograms
+ */
 void fit::correct(char* storageName) {
   TFile *storage = new TFile(storageName, "UPDATE");
   TTree *tree = (TTree*) storage->Get("corr_data");

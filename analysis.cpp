@@ -50,7 +50,12 @@ int analysis::SiTimeCheck(Int_t value) {
 }
 /*end of check functions*/
 
-//sorting algorithims, written in order to be implemented
+/*sort_raw
+ *First sort, takes the data and makes tsum plots
+ *Gates are then applied on the sum data
+ *Includes Si time cut if there is to be coincidence
+ *in the scattering chamber
+ */
 void analysis::sort_raw(char* dataName, char* storageName) {
 
   TCanvas *c1 = new TCanvas();
@@ -137,6 +142,11 @@ void analysis::sort_raw(char* dataName, char* storageName) {
   histo_file->Close();
 }
 
+/*sort_tclean
+ *Takes tsum sorted data and now makes EdE x1_x2 and fp-anode
+ *histograms for a final round of cuts
+ *If there is Si EdE, include those cuts here
+ */
 void analysis::sort_tclean(char* dataName, char* storageName) {
 
   TCanvas *c1 = new TCanvas();
@@ -230,6 +240,10 @@ void analysis::sort_tclean(char* dataName, char* storageName) {
   histo_file->Close();
 }
 
+/*sort_full
+ *Takes data through the full range of cuts and produces
+ *the majority of the histograms 
+ */
 void analysis::sort_full(char* dataName, char* storageName) {
 
   TFile *data_file = new TFile(dataName, "READ");
@@ -335,23 +349,12 @@ void analysis::sort_full(char* dataName, char* storageName) {
   histo_array->Write();
   histo_file->Close();
 }
-/*end of sorting*/
 
+/*run
+ *runs all three sorts in proper order
+ */
 void analysis::run(char* dataName, char* storageName) {
   sort_raw(dataName, storageName);
   sort_tclean(dataName, storageName);
   sort_full(dataName, storageName);
 }
-/*int main(int argc, char* argv[] ){
-  if (argc < 3 || argc > 3) { //requires two names
-    cout<<"Analysis needs two file names: data file and storage file" <<endl;
-    return 0;
-  } else {
-    TApplication app("app", &argc, argv);// allows use of ROOT graphics in standalone
-    analysis a;
-    a.sort_raw(app.Argv(1), app.Argv(2));
-    a.sort_tclean(app.Argv(1), app.Argv(2));
-    a.sort_full(app.Argv(1), app.Argv(2));
-    return 0;
-  }
-}*/ 
