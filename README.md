@@ -15,9 +15,9 @@ For a 2D cut, before double clicking use the TCutG tool located in the toolbar t
 If you give the program a third name at execution it will perform polynomial interpolation corrections for the aberrations in x|theta. Two names will only perform the standard sorting and analysis of data.
 
 #Execution:
-make clean
-make
-./analysis dataName histoName correctedName
+1. make clean
+2. make
+3. ./analysis dataName histoName correctedName
 
 #Requirements:
 ROOT ver. 5 (or newer)
