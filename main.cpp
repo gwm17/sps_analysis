@@ -1,8 +1,8 @@
 /*main.cpp
  *Main function for sps analysis program
  *3 modes: -r run everything, -a only standard analysis, -f only aberration corrections
- *-r & -f -> datafile, histogram file, fit file
- *-a -> datafile, histogram file
+ *Takes mode flag and then the data name (data file name w/o .root)
+ *data name should be 20 characters or less
  *
  * Gordon M. Feb 2019
  */
@@ -32,6 +32,16 @@ int main(int argc, char* argv[]) {
   options.onlyAnalyze = 0;
   options.runAll = 0;
   
+  char data[strlen(argv[2])+5]; //data name plus five for .root
+  char histo[strlen(argv[2])+11]; //plus 11 for _histo.root
+  char corr[strlen(argv[2])+10]; //plus 10 for _corr.root
+
+  sprintf(data, "%s.root", argv[2]);
+  sprintf(histo, "%s_histo.root", argv[2]);
+  sprintf(corr, "%s_corr.root", argv[2]);
+
+  char *pdata = data; char *phisto = histo; char *pcorr = corr;
+ 
   opt =  getopt(argc, argv, optString); // 1 = found arg, -1 = no more valid args
   while( opt != -1) {
     switch(opt) {
@@ -48,33 +58,26 @@ int main(int argc, char* argv[]) {
     opt =  getopt(argc, argv, optString); // iterate to next arg
   }
  
-  if ((options.runAll || options.onlyFit) && argc == 5) {
+  TApplication app("app", &argc, argv);
+  if ((options.runAll || options.onlyAnalyze)) {
+    cout<<"Running SPS analysis..."<<endl;
+    cout<<"Data: "<<pdata<<" Histograms: "<<phisto<<endl;
+    cout<<"Sorting data..."<<endl;
+    analysis a;
+    a.run(pdata, phisto);
+  } if (options.runAll || options.onlyFit) {
     int nfuncs;
-    cout<<"Running SPS analysis with aberration correction..."<<endl;
-    cout<<"Data: "<<argv[2]<<" Histograms: "<<argv[3]<<" Corrections: "<<argv[4]<<endl;
-    TApplication app("app", &argc, argv);
-    if(options.runAll) {
-      cout<<"Sorting data..."<<endl;
-      analysis a;
-      a.run(app.Argv(2), app.Argv(3));
-    }
+    cout<<"Running aberration corrections..."<<endl;
+    cout<<"Data: "<<pdata<<" Histograms: "<<phisto<<" Corrections: "<<pcorr<<endl;
     cout<<"Enter number of polynomials to be fitted: ";
     cin>>nfuncs;
     cout<<"Performing x|theta corrections"<<endl;
     fit f(nfuncs);
-    f.run(app.Argv(2), app.Argv(4), app.Argv(3));
+    f.run(pdata, pcorr, phisto);
     cout<<"Finished"<<endl;
-    return 0;
-  } else if (options.onlyAnalyze && argc == 4) {
-    cout<<"Running SPS analysis..."<<endl;
-    cout<<"Data: "<<argv[2]<<" Histograms: "<<argv[3]<<endl;
-    TApplication app("app", &argc, argv);
-    analysis a;
-    a.run(app.Argv(2), app.Argv(3));
-    return 0;
   } else {
     cout << "Error: command line arguments not used correctly" << endl;
     cout << "See README.md for details"<< endl;
-    return 0;
   }
+  return 0;
 }
