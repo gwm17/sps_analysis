@@ -135,8 +135,8 @@ void fit::untilt(char* dataName,char* storageName, char* histoName) {
 
   tree->SetBranchAddress("fp_plane1_tdiff", &tdiff1);
   tree->SetBranchAddress("fp_plane2_tdiff", &tdiff2);
-  tree->SetBranchAddress("FP1", &Anode1);
-  tree->SetBranchAddress("Scint1", &Scint1);
+  tree->SetBranchAddress("anode1", &Anode1);
+  tree->SetBranchAddress("scint1", &Scint1);
   vector<Float_t> ft_set;
   vector<Float_t> thetat_set;
 

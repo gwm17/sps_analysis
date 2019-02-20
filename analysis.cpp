@@ -87,7 +87,7 @@ void analysis::sort_raw(char* dataName, char* storageName) {
   data_tree->SetBranchAddress("fp_plane2_tsum", &tsum2);
   data_tree->SetBranchAddress("fp_plane1_tdiff", &tdiff1);
   data_tree->SetBranchAddress("fp_plane2_tdiff", &tdiff2);
-  data_tree->SetBranchAddress("mTDC.Data", &mtdc_data);
+  data_tree->SetBranchAddress("mtdc1", &mtdc_data);
 
   for (int i = 0; i < data_tree->GetEntries(); i++) {
    
@@ -181,11 +181,11 @@ void analysis::sort_tclean(char* dataName, char* storageName) {
   data_tree->SetBranchAddress("fp_plane2_tsum", &tsum2);
   data_tree->SetBranchAddress("fp_plane1_tdiff", &tdiff1);
   data_tree->SetBranchAddress("fp_plane2_tdiff", &tdiff2);
-  data_tree->SetBranchAddress("FP1", &Anode1);
-  data_tree->SetBranchAddress("FP2", &Anode2);
-  data_tree->SetBranchAddress("Scint1", &Scint);
-  data_tree->SetBranchAddress("Cath", &Cathode);
-  data_tree->SetBranchAddress("mTDC.Data", &mtdc_data);
+  data_tree->SetBranchAddress("anode1", &Anode1);
+  data_tree->SetBranchAddress("anode2", &Anode2);
+  data_tree->SetBranchAddress("scint1", &Scint);
+  data_tree->SetBranchAddress("cathode", &Cathode);
+  data_tree->SetBranchAddress("mtdc1", &mtdc_data);
 
   for (int i = 0; i < data_tree->GetEntries(); i++) {
  
@@ -297,11 +297,11 @@ void analysis::sort_full(char* dataName, char* storageName) {
   data_tree->SetBranchAddress("fp_plane2_tdiff", &tdiff2);
   data_tree->SetBranchAddress("fp_plane1_tsum", &tsum1);
   data_tree->SetBranchAddress("fp_plane2_tsum", &tsum2);
-  data_tree->SetBranchAddress("FP1", &Anode1);
-  data_tree->SetBranchAddress("FP2", &Anode2);
-  data_tree->SetBranchAddress("Scint1", &Scint);
-  data_tree->SetBranchAddress("Cath", &Cathode);
-  data_tree->SetBranchAddress("mTDC.Data", &mtdc_data);
+  data_tree->SetBranchAddress("anode1", &Anode1);
+  data_tree->SetBranchAddress("anode2", &Anode2);
+  data_tree->SetBranchAddress("scint1", &Scint);
+  data_tree->SetBranchAddress("cathode", &Cathode);
+  data_tree->SetBranchAddress("mtdc1", &mtdc_data);
 
   for (int i = 0; i < data_tree->GetEntries(); i++) {
     
