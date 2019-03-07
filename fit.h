@@ -3,6 +3,7 @@
  *  Corrects for tilt in the focal plane along with the characteristic x|theta aberrations
  *  The base constructor gives 5 polynomials, can override to give as many as needed
  *  G.M. Feb 2019
+ *  Modified by kgh Mar 2019 to adapt to own analysis, generalize order and phase space variable
  */
 
 #ifndef FIT_H
@@ -25,9 +26,9 @@ class fit
 {
 
   public:
-    fit(); //base constructor; 5 polynomials
-    fit(int n); //override; n polynomials
-    void run(char* dataName, char* fileName, char* histoName);
+  fit(int psvar, int ord=2, int n=5); //phase space var, order, n polynomials
+                                      //psvar = 1 for theta, 2 for phi, 3 for y -- kgh/20190307
+  void run(char* dataName, char* fileName, char* histoName);
 
   private:
     void untilt(char* dataName, char* storageName, char* histoName);

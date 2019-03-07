@@ -3,6 +3,7 @@
  *  Corrects for tilt in the focal plane along with the characteristic x|theta aberrations
  *  The base constructor gives 5 polynomials, can override to give as many as needed
  *  G.M. Feb 2019
+ *  Modified by kgh Mar 2019 to adapt to own analysis, generalize order and phase space variable
  */
 
 #include "fit.h"
@@ -13,29 +14,17 @@
 
 using namespace std;
 //Constructors
-fit::fit() :
-  tilt_space(new TCutG("tilt_space", 0)),
-  tilt(new TF1("tilt", "pol1")),
-  nfuncs(5) //default is 5 polynomials
-{
-  f = new TF1*[nfuncs];
-  f_space = new TCutG*[nfuncs];
-  for (int i = 0; i<nfuncs; i++) {
-    char fname[20];
-    char f_spacename[20];
-    sprintf(fname, "f%d", i);
-    sprintf(f_spacename, "f_space%d", i);
-    f[i] = new TF1(fname, "pol3");
-    f_space[i] = new TCutG(f_spacename, 0);
-    c.push_back(0.0);
-  }
-}
 
-fit::fit(int n) : //n is number of fits
+fit::fit(int psvar, int ord, int n) : //ord is order, n is number of fits
+                                      //psvar = 1 for theta, 2 for phi, 3 for y -- kgh/20190307
   tilt_space(new TCutG("tilt_space", 0)),
   tilt(new TF1("tilt", "pol1")),
   nfuncs(n)
 {
+
+  if (psval < 1 || psval > 3) psval = 1; //default to theta -- kgh/20190307
+  if (ord < 0) ord = 2;
+
   f = new TF1*[nfuncs];
   f_space = new TCutG*[nfuncs];
   for (int i = 0; i<nfuncs; i++) {
@@ -43,7 +32,7 @@ fit::fit(int n) : //n is number of fits
     char f_spacename[20];
     sprintf(fname, "f%d", i);
     sprintf(f_spacename, "f_space%d", i);
-    f[i] = new TF1(fname, "pol3");
+    f[i] = new TF1(fname, Form("pol%i",ord));
     f_space[i] = new TCutG(f_spacename, 0);
     c.push_back(0.0);
   }
@@ -57,6 +46,7 @@ fit::fit(int n) : //n is number of fits
 void fit::cut(char* storageName) {
   TFile *storage = new TFile(storageName, "READ");
   TCanvas *c1 = new TCanvas();
+  c1->ToggleToolBar();
   TH2F *h = (TH2F*) storage->Get("x1_theta_notilt");
  
   cout<<"Draw "<< nfuncs << " fit cuts"<< endl;
@@ -65,8 +55,7 @@ void fit::cut(char* storageName) {
     h->Draw("colz");
     char f_spacename[20];
     sprintf(f_spacename, "f_space%d", i);
-    while(c1->WaitPrimitive()) {}
-    f_space[i] = (TCutG*) c1->GetPrimitive("CUTG");
+    f_space[i] = (TCutG*)c1->WaitPrimitive("CUTG");
     f_space[i]->SetName(f_spacename);
   }
 
@@ -111,43 +100,62 @@ void fit::untilt(char* dataName,char* storageName, char* histoName) {
   TFile *data = new TFile(dataName, "READ");
   TFile *histo = new TFile(histoName, "READ");
   TFile *storage = new TFile(storageName, "RECREATE");
-  TTree *tree = (TTree*) data->Get("DataTree");
-  TCutG *s1a1_cut = (TCutG*) histo->Get("s1a1_cut");
-  TCutG *x1x2_cut = (TCutG*) histo->Get("x1x2_cut");
-  TCutG *fp1anode1_cut = (TCutG*) histo->Get("fp1anode1_cut");
-  TH2F *h = (TH2F*) histo->Get("x1_theta");
+  TTree *tree = (TTree*) data->Get("BigBoiTree");
+  TCutG *s1a1_cut = (TCutG*) histo->Get("particleID_cut");
+  TCutG *x1x2_cut = (TCutG*) histo->Get("tdiff1_v_tdiff2_cut");
+  TCutG *s1s2_cut = (TCutG*) histo->Get("tsum1_v_tsum2_cut");
+
+  TH2F *h; //main histogram from which to pull
+
+  switch (psvar) {
+  case 1:
+    h = (TH2F*) histo->Get("thvx");
+    break;
+  case 2:
+    h = (TH2F*) histo->Get("phvx");
+    break;
+  case 3:
+    h = (TH2F*) histo->Get("yvx");
+    break;
+  }
+
   TH1F *x1_notilt = new TH1F("x1_notilt", "fp1 pos untilted theta", 1000, -300, 300);
 
   cout<<"Draw tilt cut"<<endl;
   TCanvas *c1 = new TCanvas();
+  c1->ToggleToolBar();
   h->Draw("colz");
-  while(c1->WaitPrimitive()) {}
-  tilt_space = (TCutG*) c1->GetPrimitive("CUTG");
+  tilt_space = (TCutG*)c1->WaitPrimitive("CUTG");
   tilt_space->SetName("tilt_space");
   c1->Close();
- 
-  TH2F *x1_theta_notilt = new TH2F("x1_theta_notilt", "fp1 pos vs theta notilt", 600,-300, 300, 600, -300, 300);
+
+  TH2F *x1_theta_notilt = new TH2F("x1_theta_notilt", "fp1 pos vs theta notilt", 600,-300, 300, 600, -45, 45);
   Float_t tdiff1;
   Float_t tdiff2;
-  Int_t Anode1;
-  Int_t Scint1;
+  Float_t tsum1;
+  Float_t tsum2;
+  Float_t x_ave;
+  Float_t theta;
+  Float_t Anode1;
+  Float_t Scint1;
   Float_t theta_notilt;
 
-  tree->SetBranchAddress("fp_plane1_tdiff", &tdiff1);
-  tree->SetBranchAddress("fp_plane2_tdiff", &tdiff2);
-  tree->SetBranchAddress("anode1", &Anode1);
-  tree->SetBranchAddress("scint1", &Scint1);
+  tree->SetBranchAddress("fp1_tdiff", &tdiff1);
+  tree->SetBranchAddress("fp2_tdiff", &tdiff2);
+  tree->SetBranchAddress("fp1_tsum", &tsum1);
+  tree->SetBranchAddress("fp2_tsum", &tsum2);
+  tree->SetBranchAddress("x_ave", &x_ave);
+  tree->SetBranchAddress("theta", &theta);
+  tree->SetBranchAddress("Anode1", &Anode1);
+  tree->SetBranchAddress("Scint1", &Scint1);
   vector<Float_t> ft_set;
   vector<Float_t> thetat_set;
 
   for (int i = 0; i < tree->GetEntries(); i++) {
     tree->GetEntry(i);
-    tdiff1 = tdiff1*1/1.86;
-    tdiff2 = tdiff2*1/1.86;
-    Float_t theta = tdiff1-tdiff2;
-    if ( fp1anode1_cut->IsInside(tdiff1, Anode1) && x1x2_cut->IsInside(tdiff1, tdiff2) && 
-         s1a1_cut->IsInside(Scint1, Anode1) && tilt_space->IsInside(tdiff1, theta)) {
-      ft_set.push_back(tdiff1);
+    if ( s1s2_cut->IsInside(tsum2, tsum1) && x1x2_cut->IsInside(tdiff2, tdiff1) && 
+         s1a1_cut->IsInside(Scint1, Anode1) && tilt_space->IsInside(x_ave, theta)) {
+      ft_set.push_back(x_ave);
       thetat_set.push_back(theta);
     }
   }
@@ -156,17 +164,14 @@ void fit::untilt(char* dataName,char* storageName, char* histoName) {
 
   TTree *new_tree = new TTree("corr_data", "corr_data");
   new_tree->Branch("theta", &theta_notilt, "theta/F");
-  new_tree->Branch("x1", &tdiff1, "x1/F");
+  new_tree->Branch("x1", &x_ave, "x1/F");
   for (int i = 0; i < tree->GetEntries(); i++) {
     tree->GetEntry(i);
-    tdiff1 = tdiff1*1/1.86;
-    tdiff2 = tdiff2*1/1.86;
-    Float_t theta = tdiff1-tdiff2;
-    theta_notilt = theta - tilt->Eval(tdiff1);
-    if ( fp1anode1_cut->IsInside(tdiff1, Anode1) && x1x2_cut->IsInside(tdiff1, tdiff2) && 
+    theta_notilt = theta - tilt->Eval(x_ave);
+    if ( s1s2_cut->IsInside(tsum2, tsum1) && x1x2_cut->IsInside(tdiff2, tdiff1) && 
          s1a1_cut->IsInside(Scint1, Anode1)) {
-      x1_theta_notilt->Fill(tdiff1, theta_notilt);
-      x1_notilt->Fill(tdiff1);
+      x1_theta_notilt->Fill(x_ave, theta_notilt);
+      x1_notilt->Fill(x_ave);
       new_tree->Fill();
     }
   }
@@ -227,7 +232,7 @@ void fit::correct(char* storageName) {
   TFile *storage = new TFile(storageName, "UPDATE");
   TTree *tree = (TTree*) storage->Get("corr_data");
 
-  TH2F *x1_theta_corr = new TH2F("x1_theta_corr", "fp1 pos vs theta corr", 600, -300, 300, 300, -150, 150);
+  TH2F *x1_theta_corr = new TH2F("x1_theta_corr", "fp1 pos vs theta corr", 600, -300, 300, 300, -45, 45);
   TH1F *x1_corr = new TH1F("x1_corr", "fp1 pos corr", 1000, -300, 300);
   Float_t x1;
   Float_t theta;
