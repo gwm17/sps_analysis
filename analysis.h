@@ -32,6 +32,7 @@ class analysis
     void sort_raw(char* dataName, char* storageName);
     void sort_tclean(char* dataName, char* storageName);
     void sort_full(char* dataName, char* storageName);
+    int notEmpty(Int_t value);
     int Tsum1Check(Float_t value);
     int Tsum2Check(Float_t value);
     int SiTimeCheck(Int_t value);

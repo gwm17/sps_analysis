@@ -26,7 +26,11 @@ analysis::analysis() :
   max1(100000), min1(-100000), max2(100000),  min2(-100000)
 {
 }
-
+/*dump empties*/
+int analysis::notEmpty(Int_t value) {
+  if (value>1.0) {return 1;}
+  else {return 0;}
+}
 /* functions for checking if values are in bounds for 1D histos */
 int analysis::Tsum1Check(Float_t value) {
 
@@ -68,7 +72,6 @@ void analysis::sort_raw(char* dataName, char* storageName) {
   TH1F *fp1_tdiff = new TH1F("fp1_tdiff", "fp1 position", 1000, -300, 300);
   TH1F *fp2_tsum = new TH1F("fp2_tsum", "fp2 tsum", 8192, 0, 8191);
   TH1F *fp2_tdiff = new TH1F("fp2_tdiff", "fp2 position", 1000, -300, 300);
-  TH2F *fp_tsum = new TH2F("fp_tsum", "focal plane sum times", 500, 0, 8191, 500, 0, 8191);
   TH1F *si_time = new TH1F("si_time", "si timing", 65535, 0, 65535);
 
   histo_array->Add(fp1_tsum);
@@ -93,15 +96,16 @@ void analysis::sort_raw(char* dataName, char* storageName) {
    
      data_tree->GetEntry(i);
      
-     tdiff1 = tdiff1*1/1.86;
-     tdiff2 = tdiff2*1/1.86;
-     
-     fp1_tsum->Fill(tsum1);
-     fp2_tsum->Fill(tsum2);
-     fp_tsum->Fill(tsum1, tsum2);
-
-     fp1_tdiff->Fill(tdiff1);
-     fp2_tdiff->Fill(tdiff2);
+     if(notEmpty(mtdc_data[1]) && notEmpty(mtdc_data[2])){
+       tdiff1 = tdiff1*1/1.86;
+       fp1_tsum->Fill(tsum1);
+       fp1_tdiff->Fill(tdiff1);
+     }
+     if(notEmpty(mtdc_data[3]) && notEmpty(mtdc_data[4])){
+       tdiff2 = tdiff2*1/1.86;
+       fp2_tsum->Fill(tsum2);
+       fp2_tdiff->Fill(tdiff2);
+     }
      
      //Si scattering chamber coincidence GLORP
      for(int i=16; i<32; i++) {
@@ -190,20 +194,24 @@ void analysis::sort_tclean(char* dataName, char* storageName) {
   for (int i = 0; i < data_tree->GetEntries(); i++) {
  
      data_tree->GetEntry(i);
+     if (notEmpty(mtdc_data[1]) && notEmpty(mtdc_data[2]) && notEmpty(mtdc_data[3]) && notEmpty(mtdc_data[4])) {
+       tdiff1 = tdiff1*1/1.86;
+       tdiff2 = tdiff2*1/1.86;
+       Float_t theta = (tdiff1-tdiff2); //36 mm separation between wires     
 
-     tdiff1 = tdiff1*1/1.86;
-     tdiff2 = tdiff2*1/1.86;
-     Float_t theta = tdiff1-tdiff2;     
+       if (Tsum1Check(tsum1)){
+         if(notEmpty(Anode1) && notEmpty(Scint)) { 
+           scint1_anode1->Fill(Scint, Anode1);
+           fp1_anode1->Fill(tdiff1, Anode1);
+         }
+         x1_x2->Fill(tdiff1, tdiff2);
+         x1_theta->Fill(tdiff1, theta);
 
-     if (Tsum1Check(tsum1)){
-       scint1_anode1->Fill(Scint, Anode1);
-       fp1_anode1->Fill(tdiff1, Anode1);
-       fp2_anode2->Fill(tdiff2, Anode2);
-       x1_x2->Fill(tdiff1, tdiff2);
-       x1_theta->Fill(tdiff1, theta);
-
-     }
-     if (Tsum2Check(tsum2)) {}
+       }
+       if (Tsum2Check(tsum2)) {
+         fp2_anode2->Fill(tdiff2, Anode2);
+       }
+    }
   }
 
   data_file->Close();
@@ -307,44 +315,45 @@ void analysis::sort_full(char* dataName, char* storageName) {
     
     data_tree->GetEntry(i);
     
-    tdiff1 = tdiff1*1/1.86;
-    tdiff2 = tdiff2*1/1.86;
-    Float_t x_avg = tdiff1*0.8+tdiff2*0.2;
-    Float_t theta = tdiff1-tdiff2;
-    Float_t y1 = mtdc_data[5]-mtdc_data[7];
 
-    if (Tsum1Check(tsum1)){
+    if (notEmpty(mtdc_data[1]) && notEmpty(mtdc_data[2]) && notEmpty(mtdc_data[3]) && notEmpty(mtdc_data[4])) {
+      tdiff1 = tdiff1*1/1.86;
+      tdiff2 = tdiff2*1/1.86;
+      Float_t x_avg = tdiff1*0.8+tdiff2*0.2;
+      Float_t theta = tdiff1-tdiff2;
+      Float_t y1 = mtdc_data[5]-mtdc_data[7];
+      if (Tsum1Check(tsum1)){
      
-      if (s1a1_cut->IsInside(Scint, Anode1)) {
+        if (s1a1_cut->IsInside(Scint, Anode1)) {
 
-        fp1_tdiff_ts1a1gate->Fill(tdiff1);
-        fp1_anode_ts1a1gate->Fill(tdiff1, Anode1);
+          fp1_tdiff_ts1a1gate->Fill(tdiff1);
+          fp1_anode_ts1a1gate->Fill(tdiff1, Anode1);
 
-        if (x1x2_cut->IsInside(tdiff1, tdiff2) && fp1anode1_cut->IsInside(tdiff1, Anode1)){
+          if (x1x2_cut->IsInside(tdiff1, tdiff2) && fp1anode1_cut->IsInside(tdiff1, Anode1)){
 
-          fp1_tdiff_all->Fill(tdiff1);
-          if (theta_cut->IsInside(tdiff1, theta)) fp1_tdiff_all_closed->Fill(tdiff1);
-          fp1_tdiffsum->Fill(tdiff1, tsum1);
-          xdiff->Fill(theta);
-          xavg->Fill(x_avg);
-          fp1_y->Fill(y1);
-          phi_hist->Fill(tdiff2-tdiff1);
+            fp1_tdiff_all->Fill(tdiff1);
+            if (theta_cut->IsInside(tdiff1, theta)) fp1_tdiff_all_closed->Fill(tdiff1);
+            fp1_tdiffsum->Fill(tdiff1, tsum1);
+            xdiff->Fill(theta);
+            xavg->Fill(x_avg);
+            fp1_y->Fill(y1);
+            phi_hist->Fill(tdiff2-tdiff1);
           
           //Si scattering chamber coincidence GLORP
-          for (int i = 16; i<32; i++) {
-            if (SiTimeCheck(mtdc_data[i])){
-              fp1_tdiff_all_sitime->Fill(tdiff1);
-              if(theta_cut->IsInside(tdiff1,theta)) fp1_tdiff_all_sitime_closed->Fill(tdiff1);
-              break;
+            for (int i = 16; i<32; i++) {
+              if (SiTimeCheck(mtdc_data[i])){
+                fp1_tdiff_all_sitime->Fill(tdiff1);
+                if(theta_cut->IsInside(tdiff1,theta)) fp1_tdiff_all_sitime_closed->Fill(tdiff1);
+                break;
+              }
             }
-          }
           ///////////////////////////////////////
 
+          }
         }
       }
     }
   }
-
   data_file->Close();
   histo_array->Write();
   histo_file->Close();
