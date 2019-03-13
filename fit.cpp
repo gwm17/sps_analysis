@@ -6,36 +6,63 @@
  *  Modified by kgh Mar 2019 to adapt to own analysis, generalize order and phase space variable
  */
 
+#include <iostream>
+#include <cstring>
+
 #include "fit.h"
 #include "TCanvas.h"
-#include <iostream>
 #include "TMath.h"
 #include "TApplication.h"
 
 using namespace std;
 //Constructors
 
-fit::fit(int psvar, int ord, int n) : //ord is order, n is number of fits
-                                      //psvar = 1 for theta, 2 for phi, 3 for y -- kgh/20190307
-  tilt_space(new TCutG("tilt_space", 0)),
-  tilt(new TF1("tilt", "pol1")),
-  nfuncs(n)
-{
+fit::fit(int ipsvar, int iord, int n) { //ord is order, n is number of fits
+                                        //psvar = 1 for theta, 2 for phi, 3 for y -- kgh/20190307
 
-  if (psval < 1 || psval > 3) psval = 1; //default to theta -- kgh/20190307
-  if (ord < 0) ord = 2;
+  psvar = (ipsvar > 0 && ipsvar < 4) ? ipsvar : 1; //defaults to theta
+  ord = (iord > 0) ? iord : 3; //defaults to third order (strongest aberration)
+  nfuncs = (n > 0) ? n : 3; //defaults to three polynomials
+
+  tilt_space = new TCutG("tilt_space",0);
+  tilt = new TF1("tilt","pol1");
+
+  c = new Float_t[nfuncs];
 
   f = new TF1*[nfuncs];
   f_space = new TCutG*[nfuncs];
+
   for (int i = 0; i<nfuncs; i++) {
     char fname[20];
     char f_spacename[20];
-    sprintf(fname, "f%d", i);
-    sprintf(f_spacename, "f_space%d", i);
+    strcpy(fname, Form("f%d", i));
+    strcpy(f_spacename, Form("f_space%d", i));
     f[i] = new TF1(fname, Form("pol%i",ord));
     f_space[i] = new TCutG(f_spacename, 0);
-    c.push_back(0.0);
+    c[i] = 0;
   }
+
+  fix_tilt = true;
+
+}
+
+fit::~fit() {
+
+  delete tilt_space; tilt_space=0;
+  delete tilt; tilt=0;
+
+  for (int i=0; i<nfuncs; i++) {
+    delete f[i];
+    delete f_space[i];
+    f[i]=0;
+    f_space[i]=0;
+  }
+
+  delete [] f; f=0;
+  delete [] f_space; f_space=0;
+
+  delete [] c;
+
 }
 
 /*cut
@@ -43,24 +70,29 @@ fit::fit(int psvar, int ord, int n) : //ord is order, n is number of fits
  *Makes one for each polynomial
  *Also names the Cuts appropriately
  */
-void fit::cut(char* storageName) {
-  TFile *storage = new TFile(storageName, "READ");
+void fit::cut() {
+
   TCanvas *c1 = new TCanvas();
   c1->ToggleToolBar();
-  TH2F *h = (TH2F*) storage->Get("x1_theta_notilt");
  
   cout<<"Draw "<< nfuncs << " fit cuts"<< endl;
+
   for (int i=0; i<nfuncs; i++) {
     cout<<i+1<<endl;
-    h->Draw("colz");
+    switch(psvar) {
+    case 1: thvx->Draw("colz"); break;
+    case 2: phvx->Draw("colz"); break;
+    case 3: yvx->Draw("colz"); break;
+    }
     char f_spacename[20];
     sprintf(f_spacename, "f_space%d", i);
     f_space[i] = (TCutG*)c1->WaitPrimitive("CUTG");
     f_space[i]->SetName(f_spacename);
+    f_space[i]->Write();
   }
 
-  storage->Close();
   c1->Close();
+
 }
 
 /*interpolation method
@@ -69,25 +101,30 @@ void fit::cut(char* storageName) {
  *at 0. Maybe other methods better? More polynomials == better fit
  *Current method better fit for peaks in between polynomials, not on them
  */
-Float_t fit::interp(Float_t x, Float_t theta) {
+Float_t fit::interp(Float_t x, Float_t psvar_val) {
+
   Float_t d[nfuncs];
   Float_t weight[nfuncs];
   Float_t denom = 0.0;
-  Float_t value = 0.0; 
+  Float_t value = 0.0;
+
   for (int i=0; i<nfuncs; i++) {
-    Float_t distance = TMath::Abs(f[i]->Eval(theta)-x);
+    Float_t distance = TMath::Abs(f[i]->Eval(psvar_val)-x);
     if (distance == 0.0) {
-      return f[i]->Eval(theta)-c[i];
+      return f[i]->Eval(psvar_val)-c[i];
     } else {
-      d[i] = 1.0/distance ;
+      d[i] = 1.0/distance;
       denom = denom+d[i];
     }
   }
+
   for (int i = 0; i<nfuncs; i++) {
     weight[i] = d[i]/denom;
-    value = value+weight[i]*(f[i]->Eval(theta)-c[i]);
+    value = value+weight[i]*(f[i]->Eval(psvar_val)-c[i]);
   }
+
   return value; 
+
 }
 
 /*Untilt
@@ -96,30 +133,15 @@ Float_t fit::interp(Float_t x, Float_t theta) {
  *centered about 0. The new data is filled into a histogram and a tree written to
  *the fitting file
  */
-void fit::untilt(char* dataName,char* storageName, char* histoName) {
-  TFile *data = new TFile(dataName, "READ");
-  TFile *histo = new TFile(histoName, "READ");
-  TFile *storage = new TFile(storageName, "RECREATE");
-  TTree *tree = (TTree*) data->Get("BigBoiTree");
-  TCutG *s1a1_cut = (TCutG*) histo->Get("particleID_cut");
-  TCutG *x1x2_cut = (TCutG*) histo->Get("tdiff1_v_tdiff2_cut");
-  TCutG *s1s2_cut = (TCutG*) histo->Get("tsum1_v_tsum2_cut");
+void fit::untilt() {
 
   TH2F *h; //main histogram from which to pull
 
   switch (psvar) {
-  case 1:
-    h = (TH2F*) histo->Get("thvx");
-    break;
-  case 2:
-    h = (TH2F*) histo->Get("phvx");
-    break;
-  case 3:
-    h = (TH2F*) histo->Get("yvx");
-    break;
+  case 1: h = (TH2F*) infile->Get("thvx"); break;
+  case 2: h = (TH2F*) infile->Get("phvx"); break;
+  case 3: h = (TH2F*) infile->Get("yvx"); break;
   }
-
-  TH1F *x1_notilt = new TH1F("x1_notilt", "fp1 pos untilted theta", 1000, -300, 300);
 
   cout<<"Draw tilt cut"<<endl;
   TCanvas *c1 = new TCanvas();
@@ -129,59 +151,49 @@ void fit::untilt(char* dataName,char* storageName, char* histoName) {
   tilt_space->SetName("tilt_space");
   c1->Close();
 
-  TH2F *x1_theta_notilt = new TH2F("x1_theta_notilt", "fp1 pos vs theta notilt", 600,-300, 300, 600, -45, 45);
-  Float_t tdiff1;
-  Float_t tdiff2;
-  Float_t tsum1;
-  Float_t tsum2;
-  Float_t x_ave;
-  Float_t theta;
-  Float_t Anode1;
-  Float_t Scint1;
-  Float_t theta_notilt;
-
-  tree->SetBranchAddress("fp1_tdiff", &tdiff1);
-  tree->SetBranchAddress("fp2_tdiff", &tdiff2);
-  tree->SetBranchAddress("fp1_tsum", &tsum1);
-  tree->SetBranchAddress("fp2_tsum", &tsum2);
-  tree->SetBranchAddress("x_ave", &x_ave);
-  tree->SetBranchAddress("theta", &theta);
-  tree->SetBranchAddress("Anode1", &Anode1);
-  tree->SetBranchAddress("Scint1", &Scint1);
   vector<Float_t> ft_set;
-  vector<Float_t> thetat_set;
+  vector<Float_t> psvar_set;
 
-  for (int i = 0; i < tree->GetEntries(); i++) {
-    tree->GetEntry(i);
-    if ( s1s2_cut->IsInside(tsum2, tsum1) && x1x2_cut->IsInside(tdiff2, tdiff1) && 
-         s1a1_cut->IsInside(Scint1, Anode1) && tilt_space->IsInside(x_ave, theta)) {
-      ft_set.push_back(x_ave);
-      thetat_set.push_back(theta);
+  for (int i=0; i<numevents; i++) {
+    if (GenCuts(i) &&
+	tilt_space->IsInside(x_ave_v[i], psvar_v[i])) {
+
+      ft_set.push_back(x_ave_v[i]);
+      psvar_set.push_back(psvar_v[i]);
+
     }
   }
-  TGraph *x1_theta_fit_t = new TGraph(ft_set.size(), &(ft_set[0]), &(thetat_set[0]));
-  x1_theta_fit_t->Fit(tilt);
 
-  TTree *new_tree = new TTree("corr_data", "corr_data");
-  new_tree->Branch("theta", &theta_notilt, "theta/F");
-  new_tree->Branch("x1", &x_ave, "x1/F");
-  for (int i = 0; i < tree->GetEntries(); i++) {
-    tree->GetEntry(i);
-    theta_notilt = theta - tilt->Eval(x_ave);
-    if ( s1s2_cut->IsInside(tsum2, tsum1) && x1x2_cut->IsInside(tdiff2, tdiff1) && 
-         s1a1_cut->IsInside(Scint1, Anode1)) {
-      x1_theta_notilt->Fill(x_ave, theta_notilt);
-      x1_notilt->Fill(x_ave);
-      new_tree->Fill();
+  TGraph *x1_psvar_fit_t = new TGraph(ft_set.size(), &(ft_set[0]), &(psvar_set[0]));
+  x1_psvar_fit_t->Fit(tilt);
+
+  thvx->Reset();
+  phvx->Reset();
+  yvx->Reset();
+  x_ave_hist->Reset();
+
+  for (int i=0; i<numevents; i++) {
+
+    psvar_v[i] -= tilt->Eval(x_ave_v[i]);
+
+    switch(psvar) {
+    case 1: theta_v[i] = psvar_v[i]; break;
+    case 2: phi_v[i] = psvar_v[i]; break;
+    case 3: y_ave_v[i] = psvar_v[i]; break;
     }
+
+    if (GenCuts(i)) {
+
+      x_ave_hist->Fill(x_ave_v[i]);
+
+      thvx->Fill(x_ave_v[i], theta_v[i]);
+      phvx->Fill(x_ave_v[i], phi_v[i]);
+      yvx->Fill(x_ave_v[i], y_ave_v[i]);
+
+    }
+
   }
-  histo->Close();
-  data->Close();
-  x1_theta_fit_t->Write();
-  x1_theta_notilt->Write();
-  x1_notilt->Write();
-  new_tree->Write();
-  storage->Close();
+
 }
 
 /*sort
@@ -191,35 +203,29 @@ void fit::untilt(char* dataName,char* storageName, char* histoName) {
  *The number of polynomials is as usual the number specified in the 
  *constructor
  */
-void fit::sort(char* storageName) {
-  TFile *storage = new TFile(storageName, "UPDATE");
-  TTree *tree = (TTree*) storage->Get("corr_data");
+void fit::sort() {
 
-  Float_t x1;
-  Float_t theta;
- 
-  tree->SetBranchAddress("x1", &x1);
-  tree->SetBranchAddress("theta", &theta);
-  vector<Float_t> f_set[nfuncs];//Use vectors since of unknown size
-  vector<Float_t> theta_set[nfuncs];
- 
-  for (int i = 0; i < tree->GetEntries(); i++) {
-    tree->GetEntry(i);
+  vector<Float_t> f_set[nfuncs];
+  vector<Float_t> psvar_set[nfuncs];
+
+  for (int i=0; i<numevents; i++) {
     for (int j = 0; j<nfuncs; j++) {
-      if(f_space[j]->IsInside(x1, theta)) {
-        f_set[j].push_back(x1);
-        theta_set[j].push_back(theta);
+      if (f_space[j]->IsInside(x_ave_v[i], psvar_v[i]) && GenCuts(i)) {
+        f_set[j].push_back(x_ave_v[i]);
+        psvar_set[j].push_back(psvar_v[i]);
       }
     }
   }
-  TGraph **x1_theta_fit = new TGraph*[nfuncs];
+
+  TGraph **x_psvar_fit = new TGraph*[nfuncs];
+
   for (int i=0; i<nfuncs; i++) {
-    x1_theta_fit[i] = new TGraph(f_set[i].size(), &(theta_set[i][0]), &(f_set[i][0]));
-    x1_theta_fit[i]->Fit(f[i]);
+    x_psvar_fit[i] = new TGraph(f_set[i].size(), &(psvar_set[i][0]), &(f_set[i][0]));
+    x_psvar_fit[i]->Fit(f[i]);
     c[i] = f[i]->Eval(0.0);
-    x1_theta_fit[i]->Write();
+    x_psvar_fit[i]->Write();
   }
-  storage->Close();
+  
 }
 
 /*correct
@@ -228,34 +234,185 @@ void fit::sort(char* storageName) {
  *from the actual position of each datum
  *Corrected data is then written to file with a few histograms
  */
-void fit::correct(char* storageName) {
-  TFile *storage = new TFile(storageName, "UPDATE");
-  TTree *tree = (TTree*) storage->Get("corr_data");
+void fit::correct() {
 
-  TH2F *x1_theta_corr = new TH2F("x1_theta_corr", "fp1 pos vs theta corr", 600, -300, 300, 300, -45, 45);
-  TH1F *x1_corr = new TH1F("x1_corr", "fp1 pos corr", 1000, -300, 300);
-  Float_t x1;
-  Float_t theta;
+  thvx->Reset();
+  phvx->Reset();
+  yvx->Reset();
+  x_ave_hist->Reset();
 
-  tree->SetBranchAddress("x1", &x1);
-  tree->SetBranchAddress("theta", &theta);
+  for (int i=0; i<numevents; i++) {
 
-  for (int i = 0; i < tree->GetEntries(); i++) {
-    tree->GetEntry(i);
+    if (GenCuts(i)) {
 
-    Float_t corr_x1 = x1 - interp(x1, theta); 
-    x1_theta_corr->Fill(corr_x1, theta);
-    x1_corr->Fill(corr_x1);
-    
-  }   
-  x1_theta_corr->Write();
-  x1_corr->Write();
-  storage->Close();
+      x_ave_v[i] -= interp(x_ave_v[i], psvar_v[i]); 
+
+      x_ave_hist->Fill(x_ave_v[i]);
+
+      thvx->Fill(x_ave_v[i], theta_v[i]);
+      phvx->Fill(x_ave_v[i], phi_v[i]);
+      yvx->Fill(x_ave_v[i], y_ave_v[i]);
+
+      x_ave = x_ave_v[i];
+      theta = theta_v[i];
+      y_ave = y_ave_v[i];
+      phi = phi_v[i];
+      fp1_tdiff = fp1_tdiff_v[i];
+      fp2_tdiff = fp2_tdiff_v[i];
+      fp1_tsum = fp1_tsum_v[i];
+      fp2_tsum = fp2_tsum_v[i];
+      Anode1 = Anode1_v[i];
+      Scint1 = Scint1_v[i];
+
+      outtree->Fill();
+
+    }    
+
+  }
+
+  ps_canv->cd(1);
+  thvx->Draw("colz");
+  ps_canv->cd(2);
+  phvx->Draw("colz");
+  ps_canv->cd(3);
+  yvx->Draw("colz");
+
 }
 
-void fit::run(char* dataName, char* storageName, char* histoName) {
-  untilt(dataName, storageName, histoName);
-  cut(storageName);
-  sort(storageName);
-  correct(storageName);
+void fit::run(TString infileName, TString intreeName, TString outfileName, TString outtreeName) {
+
+  infile = new TFile(infileName, "READ");
+  intree = (TTree*) infile->Get(intreeName);
+  outfile = new TFile(outfileName, "RECREATE");
+  outtree = new TTree(outtreeName, outtreeName);
+
+  x_ave_hist = new TH1F("x_ave_hist","x_ave_hist",1024,-300,300);
+
+  thvx = new TH2F("thvx","thvx",512,-350,350,512,-90,90);
+  phvx = new TH2F("phvx","phvx",512,-350,350,512,-5,5);
+  yvx = new TH2F("yvx","yvx",512,-350,350,512,-20,20);
+
+  ps_canv = new TCanvas("ps_canv","ps_canv");
+  ps_canv->Divide(1,3);
+
+  intree->SetBranchAddress("x_ave", &ix_ave);
+  intree->SetBranchAddress("theta", &itheta);
+  intree->SetBranchAddress("phi", &iphi);
+  intree->SetBranchAddress("y_ave", &iy_ave);
+  intree->SetBranchAddress("fp1_tdiff", &ifp1_tdiff);
+  intree->SetBranchAddress("fp2_tdiff", &ifp2_tdiff);
+  intree->SetBranchAddress("fp1_tsum", &ifp1_tsum);
+  intree->SetBranchAddress("fp2_tsum", &ifp2_tsum);
+  intree->SetBranchAddress("Anode1", &iAnode1);
+  intree->SetBranchAddress("Scint1", &iScint1);
+
+  outtree->Branch("x_ave", &x_ave);
+  outtree->Branch("theta", &theta);
+  outtree->Branch("phi", &phi);
+  outtree->Branch("y_ave", &y_ave);
+  outtree->Branch("fp1_tdiff", &fp1_tdiff);
+  outtree->Branch("fp2_tdiff", &fp2_tdiff);
+  outtree->Branch("fp1_tsum", &fp1_tsum);
+  outtree->Branch("fp2_tsum", &fp2_tsum);
+  outtree->Branch("Anode1", &Anode1);
+  outtree->Branch("Scint1", &Scint1);
+
+  numevents = intree->GetEntries();
+
+  x_ave_v = new Float_t[numevents];
+  theta_v = new Float_t[numevents];
+  phi_v = new Float_t[numevents];
+  y_ave_v = new Float_t[numevents];
+  fp1_tdiff_v = new Float_t[numevents];
+  fp2_tdiff_v = new Float_t[numevents];
+  fp1_tsum_v = new Float_t[numevents];
+  fp2_tsum_v = new Float_t[numevents];
+  Anode1_v = new Float_t[numevents];
+  Scint1_v = new Float_t[numevents];
+
+  psvar_v = new Float_t[numevents];
+
+  for (int i=0; i<numevents; i++) {
+
+    intree->GetEntry(i);
+
+    x_ave_v[i] = ix_ave;
+    theta_v[i] = itheta;
+    phi_v[i] = iphi;
+    y_ave_v[i] = iy_ave;
+    fp1_tdiff_v[i] = ifp1_tdiff;
+    fp2_tdiff_v[i] = ifp2_tdiff;
+    fp1_tsum_v[i] = ifp1_tsum;
+    fp2_tsum_v[i] = ifp2_tsum;
+    Anode1_v[i] = iAnode1;
+    Scint1_v[i] = iScint1;
+
+    switch(psvar) {
+    case 1: psvar_v[i] = itheta; break;
+    case 2: psvar_v[i] = iphi; break;
+    case 3: psvar_v[i] = iy_ave; break;
+    }
+
+  }
+
+  particleID_cut = (TCutG*) infile->Get("particleID_cut");
+  tdiff1_v_tdiff2_cut = (TCutG*) infile->Get("tdiff1_v_tdiff2_cut");
+  tsum1_v_tsum2_cut = (TCutG*) infile->Get("tsum1_v_tsum2_cut");
+
+  if (fix_tilt) {
+    cout << "Untilting...\n";
+    untilt();
+  }
+  cout << "Making cuts...\n";
+  cut();
+  cout << "Sorting...\n";
+  sort();
+  cout << "Correcting...\n";
+  correct();
+
+  outfile->cd();
+
+  cout << "Writing objects...\n";
+
+  particleID_cut->Write();
+  tdiff1_v_tdiff2_cut->Write();
+  tsum1_v_tsum2_cut->Write();
+  thvx->Write();
+  phvx->Write();
+  yvx->Write();
+  x_ave_hist->Write();
+  ps_canv->Write();
+  outtree->Write();
+
+  infile->Close();
+  outfile->Close();
+
+  delete [] x_ave_v;
+  delete [] theta_v;
+  delete [] y_ave_v;
+  delete [] phi_v;
+  delete [] fp1_tdiff_v;
+  delete [] fp2_tdiff_v;
+  delete [] fp1_tsum_v;
+  delete [] fp2_tsum_v;
+  delete [] Anode1_v;
+  delete [] Scint1_v;
+
+  delete [] psvar_v;
+
+  cout << "Done.\n";
+
+}
+
+void fit::ToggleFixTilt() {fix_tilt = !fix_tilt;}
+
+Bool_t fit::GenCuts(Int_t elem) {
+
+  if (tsum1_v_tsum2_cut->IsInside(fp2_tsum_v[elem], fp1_tsum_v[elem]) &&
+      tdiff1_v_tdiff2_cut->IsInside(fp2_tdiff_v[elem], fp1_tdiff_v[elem]) && 
+      particleID_cut->IsInside(Scint1_v[elem], Anode1_v[elem]))
+    return true;
+
+  return false;
+
 }
