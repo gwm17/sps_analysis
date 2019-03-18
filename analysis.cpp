@@ -9,6 +9,8 @@ Comment out relevant sections (labeled) if not used in run (search GLORP)
 
 Dec. 2018
 Gordon M.
+
+Revised March 2019 to run without reopening and reclosing files as shown by KGH -- Gordon M.
 */
 
 #include "analysis.h"
@@ -60,62 +62,30 @@ int analysis::SiTimeCheck(Int_t value) {
  *Includes Si time cut if there is to be coincidence
  *in the scattering chamber
  */
-void analysis::sort_raw(char* dataName, char* storageName) {
+void analysis::sort_raw() {
 
   TCanvas *c1 = new TCanvas();
-  TFile *data_file = new TFile(dataName, "READ");
-  TFile *histo_file = new TFile(storageName, "RECREATE");
-  TTree *data_tree = (TTree*) data_file->Get("DataTree");
-
-  TObjArray *histo_array = new TObjArray();
-  TH1F *fp1_tsum = new TH1F("fp1_tsum", "fp1 tsum", 8192, 0, 8191);
-  TH1F *fp1_tdiff = new TH1F("fp1_tdiff", "fp1 position", 1000, -300, 300);
-  TH1F *fp2_tsum = new TH1F("fp2_tsum", "fp2 tsum", 8192, 0, 8191);
-  TH1F *fp2_tdiff = new TH1F("fp2_tdiff", "fp2 position", 1000, -300, 300);
-  TH1F *si_time = new TH1F("si_time", "si timing", 65535, 0, 65535);
-
-  histo_array->Add(fp1_tsum);
-  histo_array->Add(fp1_tdiff); 
-  histo_array->Add(fp2_tsum);
-  histo_array->Add(fp2_tdiff);
-  histo_array->Add(si_time);
-
-  Float_t tsum1;
-  Float_t tsum2;
-  Float_t tdiff1;
-  Float_t tdiff2;
-  Int_t mtdc_data[32];
-
-  data_tree->SetBranchAddress("fp_plane1_tsum", &tsum1);
-  data_tree->SetBranchAddress("fp_plane2_tsum", &tsum2);
-  data_tree->SetBranchAddress("fp_plane1_tdiff", &tdiff1);
-  data_tree->SetBranchAddress("fp_plane2_tdiff", &tdiff2);
-  data_tree->SetBranchAddress("mtdc1", &mtdc_data);
-
-  for (int i = 0; i < data_tree->GetEntries(); i++) {
-   
-     data_tree->GetEntry(i);
-     
-     if(notEmpty(mtdc_data[1]) && notEmpty(mtdc_data[2])){
-       tdiff1 = tdiff1*1/1.86;
-       fp1_tsum->Fill(tsum1);
+  for (int entry = 0; entry < nentries; entry++) {
+     vector<Int_t> mtdc = mtdc_v[entry];
+     if(notEmpty(mtdc[1]) && notEmpty(mtdc[2])){
+       Float_t tdiff1 = tdiff1_v[entry]*1/1.969;
+       fp1_tsum->Fill(tsum1_v[entry]);
        fp1_tdiff->Fill(tdiff1);
      }
-     if(notEmpty(mtdc_data[3]) && notEmpty(mtdc_data[4])){
-       tdiff2 = tdiff2*1/1.86;
-       fp2_tsum->Fill(tsum2);
+     if(notEmpty(mtdc[3]) && notEmpty(mtdc[4])){
+       Float_t tdiff2 = tdiff2_v[entry]*1/1.969;
+       fp2_tsum->Fill(tsum2_v[entry]);
        fp2_tdiff->Fill(tdiff2);
      }
      
      //Si scattering chamber coincidence GLORP
      for(int i=16; i<32; i++) {
-       if (mtdc_data[i] != 0) si_time->Fill(mtdc_data[i]);
+       if (mtdc[i] != 0) si_time->Fill(mtdc[i]);
      }
      //////////////////////////////////
  
   }
  
-  data_file->Close();//curently never adjusts raw data file
 
 //Where cuts are made; WaitPrimitive returns true until a double click on canvas
   fp1_tsum->Draw();
@@ -142,8 +112,6 @@ void analysis::sort_raw(char* dataName, char* storageName) {
   ////////////////
 
   c1->Close();
-  histo_array->Write();
-  histo_file->Close();
 }
 
 /*sort_tclean
@@ -151,70 +119,31 @@ void analysis::sort_raw(char* dataName, char* storageName) {
  *histograms for a final round of cuts
  *If there is Si EdE, include those cuts here
  */
-void analysis::sort_tclean(char* dataName, char* storageName) {
+void analysis::sort_tclean() {
 
   TCanvas *c1 = new TCanvas();
-  TFile *data_file = new TFile(dataName, "READ");
-  TFile *histo_file = new TFile(storageName, "UPDATE");
-  TTree *data_tree = (TTree*) data_file->Get("DataTree");
+  for (int entry = 0; entry <nentries; entry++) {
+    vector<Int_t> mtdc = mtdc_v[entry];
+    if (notEmpty(mtdc[1]) && notEmpty(mtdc[2]) && notEmpty(mtdc[3]) && notEmpty(mtdc[4])) {
+      Float_t tdiff1 = tdiff1_v[entry]*1/1.969;
+      Float_t tdiff2 = tdiff2_v[entry]*1/1.969;
+      Float_t theta = (tdiff2-tdiff1)/36.0; //36 mm separation between wires     
 
-  TObjArray *histo_array = new TObjArray();
-  TH2F *scint1_anode1 = new TH2F("scint1_anode1", "E_dE", 512, 0, 4095, 512, 0, 4095);
-  TH2F *fp1_anode1 = new TH2F("fp1_anode","fp1 pos vs anode",500, -300, 300, 512, 0, 4095);
-  TH2F *fp2_anode2 = new TH2F("fp2_anode","fp2 pos vs anode",500, -300, 300, 512, 0, 4095);
-  TH2F *x1_x2 = new TH2F("x1_x2", "fp1 pos vs fp2 pos", 500,-300,300,500,-300,300);
-  TH2F *x1_theta = new TH2F("x1_theta", "fp pos vs theta", 600,-300,300, 600,-300,300);
-  
-  histo_array->Add(scint1_anode1);
-  histo_array->Add(fp1_anode1);
-  histo_array->Add(fp2_anode2);
-  histo_array->Add(x1_x2);
-  histo_array->Add(x1_theta);
-  
-  Float_t tdiff1;
-  Float_t tdiff2;
-  Float_t tsum2;
-  Float_t tsum1;
-  Int_t Scint;
-  Int_t Anode1;
-  Int_t Anode2;
-  Int_t Cathode;
-  Int_t mtdc_data[32];
+      if (Tsum1Check(tsum1_v[entry])){
+        if(notEmpty(anode1_v[entry]) && notEmpty(scint1_v[entry])) { 
+          scint1_anode1->Fill(scint1_v[entry], anode1_v[entry]);
+          fp1_anode1->Fill(tdiff1, anode1_v[entry]);
+        }
+        x1_x2->Fill(tdiff1, tdiff2);
+        x1_theta->Fill(tdiff1, theta);
 
-  data_tree->SetBranchAddress("fp_plane1_tsum", &tsum1);
-  data_tree->SetBranchAddress("fp_plane2_tsum", &tsum2);
-  data_tree->SetBranchAddress("fp_plane1_tdiff", &tdiff1);
-  data_tree->SetBranchAddress("fp_plane2_tdiff", &tdiff2);
-  data_tree->SetBranchAddress("anode1", &Anode1);
-  data_tree->SetBranchAddress("anode2", &Anode2);
-  data_tree->SetBranchAddress("scint1", &Scint);
-  data_tree->SetBranchAddress("cathode", &Cathode);
-  data_tree->SetBranchAddress("mtdc1", &mtdc_data);
-
-  for (int i = 0; i < data_tree->GetEntries(); i++) {
- 
-     data_tree->GetEntry(i);
-     if (notEmpty(mtdc_data[1]) && notEmpty(mtdc_data[2]) && notEmpty(mtdc_data[3]) && notEmpty(mtdc_data[4])) {
-       tdiff1 = tdiff1*1/1.86;
-       tdiff2 = tdiff2*1/1.86;
-       Float_t theta = (tdiff1-tdiff2); //36 mm separation between wires     
-
-       if (Tsum1Check(tsum1)){
-         if(notEmpty(Anode1) && notEmpty(Scint)) { 
-           scint1_anode1->Fill(Scint, Anode1);
-           fp1_anode1->Fill(tdiff1, Anode1);
-         }
-         x1_x2->Fill(tdiff1, tdiff2);
-         x1_theta->Fill(tdiff1, theta);
-
-       }
-       if (Tsum2Check(tsum2)) {
-         fp2_anode2->Fill(tdiff2, Anode2);
-       }
+      }
+      if (Tsum2Check(tsum2_v[entry])) {
+        fp2_anode2->Fill(tdiff2, anode2_v[entry]);
+      }
     }
   }
 
-  data_file->Close();
 
 //again cuts, but now use GetPrimitive to retrieve obj CUTG (cast as TCutG)
   scint1_anode1->Draw("colz");
@@ -244,106 +173,53 @@ void analysis::sort_tclean(char* dataName, char* storageName) {
   theta_cut->SetName("theta_cut");
  
   c1->Close();
-  histo_array->Write();
-  histo_file->Close();
 }
 
 /*sort_full
  *Takes data through the full range of cuts and produces
  *the majority of the histograms 
  */
-void analysis::sort_full(char* dataName, char* storageName) {
+void analysis::sort_full() {
 
-  TFile *data_file = new TFile(dataName, "READ");
-  TFile *histo_file = new TFile(storageName, "UPDATE");
-  TTree *data_tree = (TTree*) data_file->Get("DataTree");
-  
-  TH1F *fp1_tdiff_ts1a1gate = new TH1F("fp1_tdiff_ts1a1gate", "fp1 pos gated s1a1 and tsum", 1000, -300, 300);
-  TH1F *fp2_tdiff_ts1a2gate = new TH1F("fp2_tdiff_ts1a2gate", "fp2 pos gated s1a2 and tsum", 1000, -300, 300);
-  TH2F *fp1_anode_ts1a1gate = new TH2F("fp1_anode_ts1a1gate", "fp1 pos vs anode gated s1a1 and tsum", 500, -300, 300, 512, 0, 4095);
-  TH1F *fp1_tdiff_all = new TH1F("fp1_tdiff_all", "fp1 pos all gates", 1000, -300, 300);
-  TH1F *fp1_tdiff_all_closed = new TH1F("fp1_tdiff_all_closed", "fp1 pos all gates & closed slits", 1000, -300, 300);
-  TH1F *xavg = new TH1F("xavg", "Avg position", 1000,-300,300);
-  TH1F *xdiff = new TH1F("xdiff", "Theta", 1000, -300, 300);
-  TH1F *fp1_y = new TH1F("fp1_y", "fp1 y pos", 4096, 0, 4095); 
-  TH1F *fp2_y = new TH1F("fp2_y", "fp2 y pos", 4096, 0, 4095);
-  TH2F *fp1_tdiffsum = new TH2F("fp1_tdiffsum", "fp1_tdiffsum", 500, -300,300,512,0,8191);
-  TH1F *fp1_tdiff_all_sitime = new TH1F("fp1_tdiff_all_sitime", "fp1 pos all w/coinc time", 1000, -300, 300);  
-  TH1F *fp1_tdiff_all_sitime_closed = new TH1F("fp1_tdiff_all_sitime_closed", "fp1 pos all w/coinc time & closed slits", 1000, -300, 300);  
-  TH1F *phi_hist = new TH1F("phi", "phi", 8192, -4095, 4095);
- 
-  TObjArray *histo_array = new TObjArray();
-  histo_array->Add(fp1_tdiff_ts1a1gate);
-  histo_array->Add(fp2_tdiff_ts1a2gate);
-  histo_array->Add(fp1_anode_ts1a1gate);
-  histo_array->Add(s1a1_cut);
-  histo_array->Add(x1x2_cut);
-  histo_array->Add(fp1anode1_cut);
-  histo_array->Add(theta_cut);
-  histo_array->Add(fp1_tdiff_all);
-  histo_array->Add(fp1_tdiff_all_closed);
-  histo_array->Add(fp1_tdiffsum);
-  histo_array->Add(xavg);
-  histo_array->Add(xdiff);
-  histo_array->Add(fp1_y);
-  histo_array->Add(fp2_y);
-  histo_array->Add(fp1_tdiff_all_sitime);
-  histo_array->Add(fp1_tdiff_all_sitime_closed);
-  histo_array->Add(phi_hist);
- 
-  Float_t tdiff1;
-  Float_t tdiff2;
-  Float_t tsum2;
-  Float_t tsum1;
-  Int_t Scint;
-  Int_t Anode1;
-  Int_t Anode2;
-  Int_t Cathode;
-  Int_t mtdc_data[32];
-
-  data_tree->SetBranchAddress("fp_plane1_tdiff", &tdiff1);
-  data_tree->SetBranchAddress("fp_plane2_tdiff", &tdiff2);
-  data_tree->SetBranchAddress("fp_plane1_tsum", &tsum1);
-  data_tree->SetBranchAddress("fp_plane2_tsum", &tsum2);
-  data_tree->SetBranchAddress("anode1", &Anode1);
-  data_tree->SetBranchAddress("anode2", &Anode2);
-  data_tree->SetBranchAddress("scint1", &Scint);
-  data_tree->SetBranchAddress("cathode", &Cathode);
-  data_tree->SetBranchAddress("mtdc1", &mtdc_data);
-
-  for (int i = 0; i < data_tree->GetEntries(); i++) {
-    
-    data_tree->GetEntry(i);
-    
-
-    if (notEmpty(mtdc_data[1]) && notEmpty(mtdc_data[2]) && notEmpty(mtdc_data[3]) && notEmpty(mtdc_data[4])) {
-      tdiff1 = tdiff1*1/1.86;
-      tdiff2 = tdiff2*1/1.86;
-      Float_t x_avg = tdiff1*0.8+tdiff2*0.2;
-      Float_t theta = tdiff1-tdiff2;
-      Float_t y1 = mtdc_data[5]-mtdc_data[7];
-      if (Tsum1Check(tsum1)){
+  for (int entry = 0; entry < nentries; entry++) {
+    vector<Int_t> mtdc = mtdc_v[entry];
+    cutFlag_n = 0;
+    if (notEmpty(mtdc[1]) && notEmpty(mtdc[2]) && notEmpty(mtdc[3]) && notEmpty(mtdc[4])) {
+      tdiff1_n = tdiff1_v[entry]*1/1.969;
+      tdiff2_n = tdiff2_v[entry]*1/1.969;
+      tsum1_n = tsum1_v[entry];
+      tsum2_n = tsum2_v[entry];
+      Float_t x_avg = tdiff1_n*0.8+tdiff2_n*0.2;
+      theta_n = (tdiff2_n-tdiff1_n)/36.0;
+      y1_n = anode1_time_v[entry]-scint1_time_v[entry];
+      y2_n = anode2_time_v[entry]-scint1_time_v[entry];
+      scint1_n = scint1_v[entry];
+      anode1_n = anode1_v[entry];
+      anode2_n = anode2_v[entry];
+      phi_n = (y2_n-y1_n)/36.0;
+      if (Tsum1Check(tsum1_v[entry]) && Tsum2Check(tsum2_v[entry])){
      
-        if (s1a1_cut->IsInside(Scint, Anode1)) {
+        if (s1a1_cut->IsInside(scint1_n, anode1_n)) {
 
-          fp1_tdiff_ts1a1gate->Fill(tdiff1);
-          fp1_anode_ts1a1gate->Fill(tdiff1, Anode1);
+          fp1_tdiff_ts1a1gate->Fill(tdiff1_n);
+          fp1_anode_ts1a1gate->Fill(tdiff1_n, anode1_n);
 
-          if (x1x2_cut->IsInside(tdiff1, tdiff2) && fp1anode1_cut->IsInside(tdiff1, Anode1)){
+          if(x1x2_cut->IsInside(tdiff1_n,tdiff2_n) && fp1anode1_cut->IsInside(tdiff1_n,anode1_n)){
 
-            fp1_tdiff_all->Fill(tdiff1);
-            if (theta_cut->IsInside(tdiff1, theta)) fp1_tdiff_all_closed->Fill(tdiff1);
-            fp1_tdiffsum->Fill(tdiff1, tsum1);
-            xdiff->Fill(theta);
+            fp1_tdiff_all->Fill(tdiff1_n);
+            if (theta_cut->IsInside(tdiff1_n, theta_n)) fp1_tdiff_all_closed->Fill(tdiff1_n);
+            fp1_tdiffsum->Fill(tdiff1_n, tsum1_n);
+            xdiff->Fill(theta_n);
             xavg->Fill(x_avg);
-            fp1_y->Fill(y1);
-            phi_hist->Fill(tdiff2-tdiff1);
-          
+            fp1_y->Fill(y1_n);
+            phi_hist->Fill(phi_n);
+            cutFlag_n = 1;         
           //Si scattering chamber coincidence GLORP
             for (int i = 16; i<32; i++) {
-              if (SiTimeCheck(mtdc_data[i])){
-                fp1_tdiff_all_sitime->Fill(tdiff1);
-                if(theta_cut->IsInside(tdiff1,theta)) fp1_tdiff_all_sitime_closed->Fill(tdiff1);
+              if (SiTimeCheck(mtdc[i])){
+                fp1_tdiff_all_sitime->Fill(tdiff1_n);
+                if(theta_cut->IsInside(tdiff1_n,theta_n)) 
+                  fp1_tdiff_all_sitime_closed->Fill(tdiff1_n);
                 break;
               }
             }
@@ -353,17 +229,136 @@ void analysis::sort_full(char* dataName, char* storageName) {
         }
       }
     }
+    sortTree->Fill();
   }
-  data_file->Close();
-  histo_array->Write();
-  histo_file->Close();
 }
 
 /*run
  *runs all three sorts in proper order
  */
 void analysis::run(char* dataName, char* storageName) {
-  sort_raw(dataName, storageName);
-  sort_tclean(dataName, storageName);
-  sort_full(dataName, storageName);
+  TFile *data = new TFile(dataName, "READ");
+  TFile *storage = new TFile(storageName, "RECREATE");
+  TTree *dataTree = (TTree*) data->Get("DataTree");
+  sortTree = new TTree("SortTree", "SortTree");
+  histoArray = new TObjArray();
+
+  fp1_tsum = new TH1F("fp1_tsum", "fp1 tsum", 8192, 0, 8191);
+  fp1_tdiff = new TH1F("fp1_tdiff", "fp1 position", 1000, -300, 300);
+  fp2_tsum = new TH1F("fp2_tsum", "fp2 tsum", 8192, 0, 8191);
+  fp2_tdiff = new TH1F("fp2_tdiff", "fp2 position", 1000, -300, 300);
+  si_time = new TH1F("si_time", "si timing", 65535, 0, 65535);
+  scint1_anode1 = new TH2F("scint1_anode1", "E_dE", 512, 0, 4095, 512, 0, 4095);
+  fp1_anode1 = new TH2F("fp1_anode","fp1 pos vs anode",500, -300, 300, 512, 0, 4095);
+  fp2_anode2 = new TH2F("fp2_anode","fp2 pos vs anode",500, -300, 300, 512, 0, 4095);
+  x1_x2 = new TH2F("x1_x2", "fp1 pos vs fp2 pos", 500,-300,300,500,-300,300);
+  x1_theta = new TH2F("x1_theta", "fp pos vs theta", 600,-300,300, 600,-3,3);
+  fp1_tdiff_ts1a1gate = new TH1F("fp1_tdiff_ts1a1gate", "fp1 pos gated s1a1 and tsum", 1000, -300, 300);
+  fp1_anode_ts1a1gate = new TH2F("fp1_anode_ts1a1gate", "fp1 pos vs anode gated s1a1 and tsum", 500, -300, 300, 512, 0, 4095);
+  fp1_tdiff_all = new TH1F("fp1_tdiff_all", "fp1 pos all gates", 1000, -300, 300);
+  fp1_tdiff_all_closed = new TH1F("fp1_tdiff_all_closed", "fp1 pos all gates & closed slits", 1000, -300, 300);
+  xavg = new TH1F("xavg", "Avg position", 1000,-300,300);
+  xdiff = new TH1F("xdiff", "Theta", 1000, -300, 300);
+  fp1_y = new TH1F("fp1_y", "fp1 y pos", 4096, 0, 4095); 
+  fp2_y = new TH1F("fp2_y", "fp2 y pos", 4096, 0, 4095);
+  fp1_tdiffsum = new TH2F("fp1_tdiffsum", "fp1_tdiffsum", 500, -300,300,512,0,8191);
+  fp1_tdiff_all_sitime = new TH1F("fp1_tdiff_all_sitime", "fp1 pos all w/coinc time", 1000, -300, 300);  
+  fp1_tdiff_all_sitime_closed = new TH1F("fp1_tdiff_all_sitime_closed", "fp1 pos all w/coinc time & closed slits", 1000, -300, 300);  
+  phi_hist = new TH1F("phi", "phi", 8192, -4095, 4095);
+ 
+  histoArray->Add(fp1_tdiff_ts1a1gate);
+  histoArray->Add(fp1_anode_ts1a1gate);
+  histoArray->Add(s1a1_cut);
+  histoArray->Add(x1x2_cut);
+  histoArray->Add(fp1anode1_cut);
+  histoArray->Add(theta_cut);
+  histoArray->Add(fp1_tdiff_all);
+  histoArray->Add(fp1_tdiff_all_closed);
+  histoArray->Add(fp1_tdiffsum);
+  histoArray->Add(xavg);
+  histoArray->Add(xdiff);
+  histoArray->Add(fp1_y);
+  histoArray->Add(fp2_y);
+  histoArray->Add(fp1_tdiff_all_sitime);
+  histoArray->Add(fp1_tdiff_all_sitime_closed);
+  histoArray->Add(phi_hist);
+  histoArray->Add(scint1_anode1);
+  histoArray->Add(fp1_anode1);
+  histoArray->Add(fp2_anode2);
+  histoArray->Add(x1_x2);
+  histoArray->Add(x1_theta);
+  histoArray->Add(fp1_tsum);
+  histoArray->Add(fp1_tdiff); 
+  histoArray->Add(fp2_tsum);
+  histoArray->Add(fp2_tdiff);
+  histoArray->Add(si_time);
+
+  dataTree->SetBranchAddress("anode1", &anode1_d);
+  dataTree->SetBranchAddress("anode2", &anode2_d);
+  dataTree->SetBranchAddress("scint1", &scint1_d);
+  dataTree->SetBranchAddress("scint2", &scint2_d);
+  dataTree->SetBranchAddress("fp_plane1_tdiff", &tdiff1_d);
+  dataTree->SetBranchAddress("fp_plane2_tdiff", &tdiff2_d);
+  dataTree->SetBranchAddress("fp_plane1_tsum", &tsum1_d);
+  dataTree->SetBranchAddress("fp_plane2_tsum", &tsum2_d);
+  dataTree->SetBranchAddress("mtdc1", &mtdc_d);
+  dataTree->SetBranchAddress("anode1_time", &anode1_time_d);
+  dataTree->SetBranchAddress("anode2_time", &anode1_time_d);
+  dataTree->SetBranchAddress("plastic_time", &scint1_time_d);
+
+  sortTree->Branch("x1", &tdiff1_n, "x1/F");
+  sortTree->Branch("x2", &tdiff2_n, "x2/F");
+  sortTree->Branch("tsum1", &tsum1_n, "tsum1/F");
+  sortTree->Branch("tsum2", &tsum2_n, "tsum2/F");
+  sortTree->Branch("theta", &theta_n, "theta/F");
+  sortTree->Branch("phi", &phi_n, "phi/F");
+  sortTree->Branch("y1", &y1_n, "y1/F");
+  sortTree->Branch("y2", &y2_n, "y2/F");
+  sortTree->Branch("anode1", &anode1_n, "anode1/I");
+  sortTree->Branch("anode2", &anode2_n, "anode2/I");
+  sortTree->Branch("cutFlag", &cutFlag_n, "cutFlag/I");
+
+  nentries = dataTree->GetEntries();
+  cout<<"entries: "<<nentries<<endl;
+  mtdc_v.resize(nentries);
+  for (int entry = 0; entry<nentries; entry++) {
+    dataTree->GetEntry(entry);
+    mtdc_v[entry].resize(32);
+    anode1_v.push_back(anode1_d);
+    anode2_v.push_back(anode2_d);
+    scint2_v.push_back(scint2_d);
+    scint1_v.push_back(scint1_d);
+    tdiff1_v.push_back(tdiff1_d);
+    tdiff2_v.push_back(tdiff2_d);
+    tsum1_v.push_back(tsum1_d);
+    tsum2_v.push_back(tsum2_d);
+    scint1_time_v.push_back(scint1_time_d);
+    anode1_time_v.push_back(anode1_time_d);
+    anode2_time_v.push_back(anode2_time_d);
+    for (int i=0; i<32; i++) {
+      mtdc_v[entry][i] = mtdc_d[i];
+    }
+  }
+  
+  sort_raw();
+  sort_tclean();
+  sort_full();
+
+  anode1_v.clear();
+  anode2_v.clear();
+  scint2_v.clear();
+  scint1_v.clear();
+  tdiff1_v.clear();
+  tdiff2_v.clear();
+  tsum1_v.clear();
+  tsum2_v.clear();
+  mtdc_v.clear();
+  scint1_time_v.clear();
+  anode1_time_v.clear();
+  anode2_time_v.clear();
+
+  sortTree->Write();
+  histoArray->Write();
+  data->Close();
+  storage->Close();
 }

@@ -13,6 +13,7 @@
 #include "TApplication.h"
 #include <iostream>
 #include <unistd.h>
+#include <string>
 
 using namespace std;
 
@@ -36,9 +37,9 @@ int main(int argc, char* argv[]) {
   char histo[strlen(argv[2])+11]; //plus 11 for _histo.root
   char corr[strlen(argv[2])+10]; //plus 10 for _corr.root
 
-  sprintf(data, "%s.root", argv[2]);
-  sprintf(histo, "%s_histo.root", argv[2]);
-  sprintf(corr, "%s_corr.root", argv[2]);
+  strcpy(data, Form("%s.root", argv[2]));
+  strcpy(histo, Form("%s_histo.root", argv[2]));
+  strcpy(corr, Form("%s_corr.root", argv[2]));
 
   char *pdata = data; char *phisto = histo; char *pcorr = corr;
  
@@ -73,11 +74,8 @@ int main(int argc, char* argv[]) {
     cin>>nfuncs;
     cout<<"Performing x|theta corrections"<<endl;
     fit f(nfuncs);
-    f.run(pdata, pcorr, phisto);
+    f.run(phisto, pcorr);
     cout<<"Finished"<<endl;
-  } else {
-    cout << "Error: command line arguments not used correctly" << endl;
-    cout << "See README.md for details"<< endl;
-  }
+  }  
   return 0;
 }
