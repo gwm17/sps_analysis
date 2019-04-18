@@ -1,15 +1,18 @@
 CC=g++
-CFLAGS=-c -g -Wall `root-config --cflags`
-LDFLAGS=`root-config --glibs`
-SOURCES=analysis.cpp fit.cpp main.cpp
-OBJECTS=$(SOURCES:.cpp=.o)
+CFLAGS=-c -Wall `root-config --cflags --glibs`
+LDFLAGS=`root-config --cflags --glibs`
+OBJECTS=analysis.o fit.o background.o main.o
 EXECUTABLE=analysis
 
-all: $(SOURCES) $(EXECUTABLE)
+all: $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
-	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
-.cpp.o:
-	$(CC) $(CFLAGS) $< -o $@
+	$(CC) $(LDFLAGS) $(OBJECTS) -o $@ -lSpectrum
+
+%.o: %.cpp
+	$(CC) -o $@ $(CFLAGS) $^ 
+
+.PHONY: clean
+
 clean:
 	rm ./*.o ./analysis

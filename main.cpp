@@ -9,6 +9,7 @@
 
 #include "analysis.h"
 #include "fit.h"
+#include "background.h"
 #include "TROOT.h"
 #include "TApplication.h"
 #include <iostream>
@@ -22,10 +23,11 @@ struct options {
   int onlyFit; // -f
   int onlyAnalyze; // -a
   int runAll; // -r
+  int cleanBackground;
 } options;
 
 //flag string for getopt; if expecting value with flag use : after flag letter
-static const char *optString = "far";
+static const char *optString = "farb";
 
 int main(int argc, char* argv[]) {
   int opt = 0;
@@ -36,12 +38,14 @@ int main(int argc, char* argv[]) {
   char data[strlen(argv[2])+5]; //data name plus five for .root
   char histo[strlen(argv[2])+11]; //plus 11 for _histo.root
   char corr[strlen(argv[2])+10]; //plus 10 for _corr.root
+  char clean[strlen(argv[2])+11]; //plus 11 for _clean.root
 
   strcpy(data, Form("%s.root", argv[2]));
   strcpy(histo, Form("%s_histo.root", argv[2]));
   strcpy(corr, Form("%s_corr.root", argv[2]));
+  strcpy(clean, Form("%s_clean.root", argv[2]));
 
-  char *pdata = data; char *phisto = histo; char *pcorr = corr;
+  char *pdata = data; char *phisto = histo; char *pcorr = corr; char *pclean = clean;
  
   opt =  getopt(argc, argv, optString); // 1 = found arg, -1 = no more valid args
   while( opt != -1) {
@@ -54,6 +58,9 @@ int main(int argc, char* argv[]) {
         break;
       case 'r':
         options.runAll = 1;
+        break;
+      case 'b':
+        options.cleanBackground = 1;
         break;
     }
     opt =  getopt(argc, argv, optString); // iterate to next arg
@@ -76,6 +83,11 @@ int main(int argc, char* argv[]) {
     fit f(nfuncs);
     f.run(phisto, pcorr);
     cout<<"Finished"<<endl;
+  } if (options.cleanBackground) {
+    cout<<"Cleaning up the corrected position histogram..."<<endl;
+    cout<<"Corrections: "<<pcorr<<" Cleaned: "<<pclean<<endl;
+    Backgnd destroy;
+    destroy.run(pcorr, pclean);
   }  
   return 0;
 }
