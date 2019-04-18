@@ -1,10 +1,11 @@
 /*main.cpp
  *Main function for sps analysis program
- *3 modes: -r run everything, -a only standard analysis, -f only aberration corrections
+ *4 modes: -r run everything, -a only standard analysis, -f only aberration corrections, -b only background removal
  *Takes mode flag and then the data name (data file name w/o .root)
  *data name should be 20 characters or less
  *
  * Gordon M. Feb 2019
+ * Updated by G.M. April 2019 for background removal
  */
 
 #include "analysis.h"
@@ -23,7 +24,7 @@ struct options {
   int onlyFit; // -f
   int onlyAnalyze; // -a
   int runAll; // -r
-  int cleanBackground;
+  int cleanBackground; // -b
 } options;
 
 //flag string for getopt; if expecting value with flag use : after flag letter
@@ -73,6 +74,7 @@ int main(int argc, char* argv[]) {
     cout<<"Sorting data..."<<endl;
     analysis a;
     a.run(pdata, phisto);
+    cout<<"Sorting complete."<<endl;
   } if (options.runAll || options.onlyFit) {
     int nfuncs;
     cout<<"Running aberration corrections..."<<endl;
@@ -82,12 +84,14 @@ int main(int argc, char* argv[]) {
     cout<<"Performing x|theta corrections"<<endl;
     fit f(nfuncs);
     f.run(phisto, pcorr);
-    cout<<"Finished"<<endl;
-  } if (options.cleanBackground) {
+    cout<<"Corrections complete."<<endl;
+  } if (options.runAll || options.cleanBackground) {
     cout<<"Cleaning up the corrected position histogram..."<<endl;
     cout<<"Corrections: "<<pcorr<<" Cleaned: "<<pclean<<endl;
     Backgnd destroy;
     destroy.run(pcorr, pclean);
+    cout<<"Background annihiliated."<<endl;
   }  
+  cout<<"SPS analysis complete."<<endl;
   return 0;
 }

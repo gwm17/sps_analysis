@@ -1,3 +1,14 @@
+/*background.h
+ *Class for use in SPS analysis to remove background from a spectrum.
+ *Designed to be fed a corrected x-position spectrum and then wipe the 
+ *background using the TSpectrum tool from ROOT. If the background isn't very smooth, adjust
+ *the number of iterations used by the Background() function (default is 10). Returns the 
+ *original histogram, the background histogram, and the original minus the background histogram.
+ *
+ *Gordon M. -- April 2019
+ *
+ */
+
 #ifndef BACKGROUND_H
 #define BACKGROUND_H
 
@@ -5,7 +16,6 @@
 #include "TFile.h"
 #include "TH1.h"
 #include "TF1.h"
-#include "TCanvas.h"
 #include "TSpectrum.h"
 
 using namespace std;
