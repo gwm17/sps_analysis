@@ -29,7 +29,8 @@ class analysis
   public:
     analysis();
     void run(char* dataName, char* storageName);
-  
+    ~analysis();
+   
   private:
     /*functions*/
     void sort_raw();
@@ -73,13 +74,15 @@ class analysis
     anode1_time_d,
     anode2_time_d;
 
-    Int_t mtdc_d[32];
+    vector<Int_t> *mtdc_d;
     
     /*new tree variables*/
     Float_t tdiff1_n,
     tdiff2_n,
     tsum1_n,
     tsum2_n,
+    tcheck2_n,
+    tcheck1_n,
     theta_n,
     phi_n,
     y1_n,

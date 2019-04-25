@@ -28,6 +28,11 @@ analysis::analysis() :
   max1(100000), min1(-100000), max2(100000),  min2(-100000)
 {
 }
+
+analysis::~analysis() {
+  delete mtdc_d;
+}
+
 /*dump empties*/
 int analysis::notEmpty(Int_t value) {
   if (value>1.0) {return 1;}
@@ -206,7 +211,7 @@ void analysis::sort_full() {
 
           if(x1x2_cut->IsInside(tdiff1_n,tdiff2_n) && fp1anode1_cut->IsInside(tdiff1_n,anode1_n)){
 
-            fp1_tdiff_all->Fill(tdiff1_n);
+           fp1_tdiff_all->Fill(tdiff1_n);
             if (theta_cut->IsInside(tdiff1_n, theta_n)) fp1_tdiff_all_closed->Fill(tdiff1_n);
             fp1_tdiffsum->Fill(tdiff1_n, tsum1_n);
             xdiff->Fill(theta_n);
@@ -228,8 +233,8 @@ void analysis::sort_full() {
           }
         }
       }
+      sortTree->Fill();
     }
-    sortTree->Fill();
   }
 }
 
@@ -310,6 +315,8 @@ void analysis::run(char* dataName, char* storageName) {
   sortTree->Branch("x2", &tdiff2_n, "x2/F");
   sortTree->Branch("tsum1", &tsum1_n, "tsum1/F");
   sortTree->Branch("tsum2", &tsum2_n, "tsum2/F");
+  sortTree->Branch("tcheck2", &tcheck2_n, "tcheck2/F");
+  sortTree->Branch("tcheck1", &tcheck1_n, "tcheck1/F");
   sortTree->Branch("theta", &theta_n, "theta/F");
   sortTree->Branch("phi", &phi_n, "phi/F");
   sortTree->Branch("y1", &y1_n, "y1/F");
@@ -336,7 +343,7 @@ void analysis::run(char* dataName, char* storageName) {
     anode1_time_v.push_back(anode1_time_d);
     anode2_time_v.push_back(anode2_time_d);
     for (int i=0; i<32; i++) {
-      mtdc_v[entry][i] = mtdc_d[i];
+      mtdc_v[entry][i] = (*mtdc_d)[i];
     }
   }
   
