@@ -173,6 +173,8 @@ void analysis::sort_tclean() {
   cut = (TCutG*)c1->GetPrimitive("CUTG");
   s1a1_cut = cut;
   s1a1_cut->SetName("s1a1_cut");
+  s1a1_cut->SetVarX("scint");
+  s1a1_cut->SetVarY("anode1");
   histoArray->Add(s1a1_cut);
 
   x1_x2->Draw("colz");
@@ -180,6 +182,8 @@ void analysis::sort_tclean() {
   cut = (TCutG*)c1->GetPrimitive("CUTG");
   x1x2_cut = cut;
   x1x2_cut->SetName("x1x2_cut");
+  x1x2_cut->SetVarX("x1");
+  x1x2_cut->SetVarY("x2");
   histoArray->Add(x1x2_cut);
 
   fp1_anode1->Draw("colz");
@@ -187,6 +191,8 @@ void analysis::sort_tclean() {
   cut = (TCutG*)c1->GetPrimitive("CUTG");
   fp1anode1_cut = cut;
   fp1anode1_cut->SetName("fp1anode1_cut");
+  fp1anode1_cut->SetVarX("x1");
+  fp1anode1_cut->SetVarY("anode1");
   histoArray->Add(fp1anode1_cut);
 
 
@@ -195,6 +201,8 @@ void analysis::sort_tclean() {
   cut = (TCutG*)c1->GetPrimitive("CUTG");
   theta_cut = cut;
   theta_cut->SetName("theta_cut");
+  theta_cut->SetVarX("x1");
+  theta_cut->SetVarY("theta");
   histoArray->Add(theta_cut);
 
   for(int i=0; i<nentries; i++) {
@@ -211,6 +219,8 @@ void analysis::sort_tclean() {
   cut = (TCutG*)c1->GetPrimitive("CUTG");
   fp1plast_cut = cut;
   fp1plast_cut->SetName("fp1plast_cut");
+  fp1plast_cut->SetVarX("x1");
+  fp1plast_cut->SetVarY("plastic_time");
   histoArray->Add(fp1plast_cut);
   c1->Close();
 }
@@ -234,7 +244,7 @@ void analysis::sort_full() {
       theta_n = (tdiff2_n-tdiff1_n)/36.0;
       y1_n = anode1_time_v[entry]-scint1_time_v[entry];
       y2_n = anode2_time_v[entry]-scint1_time_v[entry];
-      scint1_time_n = scint1_time_v[entry]*0.0625;
+      scint1_time_n = (Float_t)scint1_time_v[entry]*0.0625;
       scint1_n = scint1_v[entry];
       anode1_n = anode1_v[entry];
       anode2_n = anode2_v[entry];
@@ -360,6 +370,8 @@ void analysis::run(char* dataName, char* storageName) {
   sortTree->Branch("y2", &y2_n, "y2/F");
   sortTree->Branch("anode1", &anode1_n, "anode1/I");
   sortTree->Branch("anode2", &anode2_n, "anode2/I");
+  sortTree->Branch("scint", &scint1_n, "scint/I");
+  sortTree->Branch("scint_time", &scint1_time_n,"scint_time/F");
   sortTree->Branch("cutFlag", &cutFlag_n, "cutFlag/I");
   sortTree->Branch("coincFlag", &coincFlag_n, "coincFlag/I");
 
