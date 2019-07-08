@@ -28,9 +28,9 @@ class analysis
 
   public:
     analysis();
-    void run(char* dataName, char* storageName);
     ~analysis();
-   
+    void run(char* dataName, char* storageName);
+  
   private:
     /*functions*/
     void sort_raw();
@@ -40,6 +40,7 @@ class analysis
     int Tsum1Check(Float_t value);
     int Tsum2Check(Float_t value);
     int SiTimeCheck(Int_t value);
+    void Reset();
 
     /*Tree for storing final paramters*/    
     TTree *sortTree; 
@@ -86,11 +87,13 @@ class analysis
     theta_n,
     phi_n,
     y1_n,
+    scint1_time_n,
     y2_n;
     
     Int_t anode1_n,
     anode2_n,
     cutFlag_n,
+    coincFlag_n,
     scint1_n;
 
     /*keep track of number of entries for loops*/
@@ -120,6 +123,7 @@ class analysis
     *x1_x2,
     *x1_theta,
     *fp1_anode_ts1a1gate,
+    *fp1_plastic_time,
     *fp1_tdiffsum;
 
     TObjArray *histoArray;
@@ -129,6 +133,7 @@ class analysis
     TCutG *fp1anode1_cut;
     TCutG *sicoinc_cut;
     TCutG *theta_cut;
+    TCutG *fp1plast_cut;
     Int_t minSi;
     Int_t maxSi;
     Int_t max1;

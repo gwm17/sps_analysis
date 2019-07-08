@@ -25,14 +25,13 @@ analysis::analysis() :
   x1x2_cut(new TCutG("x1x2_cut", 0)),
   fp1anode1_cut(new TCutG("fp1anode_cut",0)),
   theta_cut(new TCutG("theta_cut",0)),
+  fp1plast_cut(new TCutG("fp1plast_cut",0)),
   max1(100000), min1(-100000), max2(100000),  min2(-100000)
 {
 }
-
 analysis::~analysis() {
   delete mtdc_d;
 }
-
 /*dump empties*/
 int analysis::notEmpty(Int_t value) {
   if (value>1.0) {return 1;}
@@ -58,6 +57,24 @@ int analysis::SiTimeCheck(Int_t value) {
   if (value<maxSi && value>minSi) {return 1;}
   else {return 0;}
 
+}
+
+void analysis::Reset() {
+  tdiff1_n = -1e6;
+  tdiff2_n = -1e6;
+  tsum1_n = -1e6;
+  tsum2_n = -1e6;
+  tcheck2_n = -1e6;
+  tcheck1_n = -1e6;
+  theta_n = -1e6;
+  phi_n = -1e6;
+  y1_n = -1e6;
+  y2_n = -1e6;
+  
+  anode1_n = -1,
+  anode2_n = -1,
+  cutFlag_n = -1,
+  scint1_n = -1;
 }
 /*end of check functions*/
 
@@ -141,7 +158,6 @@ void analysis::sort_tclean() {
         }
         x1_x2->Fill(tdiff1, tdiff2);
         x1_theta->Fill(tdiff1, theta);
-
       }
       if (Tsum2Check(tsum2_v[entry])) {
         fp2_anode2->Fill(tdiff2, anode2_v[entry]);
@@ -157,18 +173,21 @@ void analysis::sort_tclean() {
   cut = (TCutG*)c1->GetPrimitive("CUTG");
   s1a1_cut = cut;
   s1a1_cut->SetName("s1a1_cut");
+  histoArray->Add(s1a1_cut);
 
   x1_x2->Draw("colz");
   while(c1->WaitPrimitive()) {}
   cut = (TCutG*)c1->GetPrimitive("CUTG");
   x1x2_cut = cut;
   x1x2_cut->SetName("x1x2_cut");
+  histoArray->Add(x1x2_cut);
 
   fp1_anode1->Draw("colz");
   while(c1->WaitPrimitive()) {}
   cut = (TCutG*)c1->GetPrimitive("CUTG");
   fp1anode1_cut = cut;
   fp1anode1_cut->SetName("fp1anode1_cut");
+  histoArray->Add(fp1anode1_cut);
 
 
   x1_theta->Draw("colz");
@@ -176,7 +195,23 @@ void analysis::sort_tclean() {
   cut = (TCutG*)c1->GetPrimitive("CUTG");
   theta_cut = cut;
   theta_cut->SetName("theta_cut");
- 
+  histoArray->Add(theta_cut);
+
+  for(int i=0; i<nentries; i++) {
+    Float_t tdiff1 = tdiff1_v[i]*1/1.86;
+    Float_t anode1 = anode1_v[i];
+    if(fp1anode1_cut->IsInside(tdiff1, anode1)) {
+      Float_t scint1_time = scint1_time_v[i]*0.0625;
+      fp1_plastic_time->Fill(tdiff1, scint1_time);
+    }
+  }
+  
+  fp1_plastic_time->Draw("colz");
+  while(c1->WaitPrimitive()) {}
+  cut = (TCutG*)c1->GetPrimitive("CUTG");
+  fp1plast_cut = cut;
+  fp1plast_cut->SetName("fp1plast_cut");
+  histoArray->Add(fp1plast_cut);
   c1->Close();
 }
 
@@ -189,6 +224,7 @@ void analysis::sort_full() {
   for (int entry = 0; entry < nentries; entry++) {
     vector<Int_t> mtdc = mtdc_v[entry];
     cutFlag_n = 0;
+    coincFlag_n = 0;
     if (notEmpty(mtdc[1]) && notEmpty(mtdc[2]) && notEmpty(mtdc[3]) && notEmpty(mtdc[4])) {
       tdiff1_n = tdiff1_v[entry]*1/1.969;
       tdiff2_n = tdiff2_v[entry]*1/1.969;
@@ -198,20 +234,22 @@ void analysis::sort_full() {
       theta_n = (tdiff2_n-tdiff1_n)/36.0;
       y1_n = anode1_time_v[entry]-scint1_time_v[entry];
       y2_n = anode2_time_v[entry]-scint1_time_v[entry];
+      scint1_time_n = scint1_time_v[entry]*0.0625;
       scint1_n = scint1_v[entry];
       anode1_n = anode1_v[entry];
       anode2_n = anode2_v[entry];
       phi_n = (y2_n-y1_n)/36.0;
       if (Tsum1Check(tsum1_v[entry]) && Tsum2Check(tsum2_v[entry])){
      
-        if (s1a1_cut->IsInside(scint1_n, anode1_n)) {
+        if (s1a1_cut->IsInside(scint1_n, anode1_n) && 
+            fp1plast_cut->IsInside(tdiff1_n, scint1_time_n)) {
 
           fp1_tdiff_ts1a1gate->Fill(tdiff1_n);
           fp1_anode_ts1a1gate->Fill(tdiff1_n, anode1_n);
 
           if(x1x2_cut->IsInside(tdiff1_n,tdiff2_n) && fp1anode1_cut->IsInside(tdiff1_n,anode1_n)){
 
-           fp1_tdiff_all->Fill(tdiff1_n);
+            fp1_tdiff_all->Fill(tdiff1_n);
             if (theta_cut->IsInside(tdiff1_n, theta_n)) fp1_tdiff_all_closed->Fill(tdiff1_n);
             fp1_tdiffsum->Fill(tdiff1_n, tsum1_n);
             xdiff->Fill(theta_n);
@@ -223,6 +261,7 @@ void analysis::sort_full() {
             for (int i = 16; i<32; i++) {
               if (SiTimeCheck(mtdc[i])){
                 fp1_tdiff_all_sitime->Fill(tdiff1_n);
+                coincFlag_n = 1;
                 if(theta_cut->IsInside(tdiff1_n,theta_n)) 
                   fp1_tdiff_all_sitime_closed->Fill(tdiff1_n);
                 break;
@@ -270,13 +309,10 @@ void analysis::run(char* dataName, char* storageName) {
   fp1_tdiff_all_sitime = new TH1F("fp1_tdiff_all_sitime", "fp1 pos all w/coinc time", 1000, -300, 300);  
   fp1_tdiff_all_sitime_closed = new TH1F("fp1_tdiff_all_sitime_closed", "fp1 pos all w/coinc time & closed slits", 1000, -300, 300);  
   phi_hist = new TH1F("phi", "phi", 8192, -4095, 4095);
+  fp1_plastic_time = new TH2F("fp1_plastic_time","fp1_plastic_time",600,-300,300,600,0,8191);
  
   histoArray->Add(fp1_tdiff_ts1a1gate);
   histoArray->Add(fp1_anode_ts1a1gate);
-  histoArray->Add(s1a1_cut);
-  histoArray->Add(x1x2_cut);
-  histoArray->Add(fp1anode1_cut);
-  histoArray->Add(theta_cut);
   histoArray->Add(fp1_tdiff_all);
   histoArray->Add(fp1_tdiff_all_closed);
   histoArray->Add(fp1_tdiffsum);
@@ -297,6 +333,7 @@ void analysis::run(char* dataName, char* storageName) {
   histoArray->Add(fp2_tsum);
   histoArray->Add(fp2_tdiff);
   histoArray->Add(si_time);
+  histoArray->Add(fp1_plastic_time);
 
   dataTree->SetBranchAddress("anode1", &anode1_d);
   dataTree->SetBranchAddress("anode2", &anode2_d);
@@ -324,6 +361,7 @@ void analysis::run(char* dataName, char* storageName) {
   sortTree->Branch("anode1", &anode1_n, "anode1/I");
   sortTree->Branch("anode2", &anode2_n, "anode2/I");
   sortTree->Branch("cutFlag", &cutFlag_n, "cutFlag/I");
+  sortTree->Branch("coincFlag", &coincFlag_n, "coincFlag/I");
 
   nentries = dataTree->GetEntries();
   cout<<"entries: "<<nentries<<endl;
@@ -364,7 +402,7 @@ void analysis::run(char* dataName, char* storageName) {
   anode1_time_v.clear();
   anode2_time_v.clear();
 
-  sortTree->Write();
+  sortTree->Write(sortTree->GetName(), TObject::kOverwrite);
   histoArray->Write();
   data->Close();
   storage->Close();
