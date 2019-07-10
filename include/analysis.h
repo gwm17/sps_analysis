@@ -37,10 +37,11 @@ class analysis
     void sort_tclean();
     void sort_full();
     int notEmpty(Int_t value);
-    int Tsum1Check(Float_t value);
-    int Tsum2Check(Float_t value);
+    int TCheck1Check(Float_t value);
+    int TCheck2Check(Float_t value);
     int SiTimeCheck(Int_t value);
     void Reset();
+    void GetWeights();
 
     /*Tree for storing final paramters*/    
     TTree *sortTree; 
@@ -60,6 +61,8 @@ class analysis
     anode2_time_v;
 
     vector<vector<Int_t>> mtdc_v;
+    
+    Float_t w1, w2;
 
     /*raw branch variables*/
     Int_t anode1_d,
@@ -88,6 +91,8 @@ class analysis
     phi_n,
     y1_n,
     scint1_time_n,
+    rf_scint_wrapped_n,
+    x_avg_n,
     y2_n;
     
     Int_t anode1_n,
@@ -115,6 +120,8 @@ class analysis
     *yavg,
     *fp1_tdiff_all_sitime,
     *fp1_tdiff_all_sitime_closed,
+    *fp1_tcheck,
+    *fp2_tcheck,
     *phi_hist;
 
     TH2F *scint1_anode1,
@@ -124,6 +131,7 @@ class analysis
     *x1_theta,
     *fp1_anode_ts1a1gate,
     *fp1_plastic_time,
+    *fp1_rf_scint_wrapped,
     *fp1_tdiffsum;
 
     TObjArray *histoArray;
@@ -134,6 +142,7 @@ class analysis
     TCutG *sicoinc_cut;
     TCutG *theta_cut;
     TCutG *fp1plast_cut;
+    TCutG *fp1rfwrap_cut;
     Int_t minSi;
     Int_t maxSi;
     Int_t max1;
