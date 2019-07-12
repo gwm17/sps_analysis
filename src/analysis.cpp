@@ -80,8 +80,8 @@ void analysis::Reset() {
 /*end of check functions*/
 
 void analysis::GetWeights() {
-  int Zt = 6, At = 12, Zp = 1, Ap = 2, Ze = 1, Ae = 1;
-  double Ep = 16.0, angle = 20.0, B = 8840;
+  int Zt = 9, At = 19, Zp = 1, Ap = 2, Ze = 1, Ae = 1;
+  double Ep = 16.0, angle = 25.0, B = 8938;
   w1 = (Wire_Dist()/2.0-Delta_Z(Zt,At,Zp,Ap,Ze,Ae,Ep,angle,B))/Wire_Dist();
   w2 = 1.0-w1;
 }

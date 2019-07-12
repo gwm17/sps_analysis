@@ -11,6 +11,7 @@
 #include "analysis.h"
 #include "fit.h"
 #include "background.h"
+#include "gausFit.h"
 #include "TROOT.h"
 #include "TApplication.h"
 #include <iostream>
@@ -25,10 +26,11 @@ struct options {
   int onlyAnalyze; // -a
   int runAll; // -r
   int cleanBackground; // -b
+  int fitPeaks; // -g
 } options;
 
 //flag string for getopt; if expecting value with flag use : after flag letter
-static const char *optString = "farb";
+static const char *optString = "farbg";
 
 int main(int argc, char* argv[]) {
   int opt = 0;
@@ -63,6 +65,9 @@ int main(int argc, char* argv[]) {
       case 'b':
         options.cleanBackground = 1;
         break;
+      case 'g':
+        options.fitPeaks = 1;
+        break;
     }
     opt =  getopt(argc, argv, optString); // iterate to next arg
   }
@@ -91,7 +96,27 @@ int main(int argc, char* argv[]) {
     Backgnd destroy;
     destroy.run(pcorr, pclean);
     cout<<"Background annihiliated."<<endl;
-  }  
+  } if (options.fitPeaks) {
+    cout<<"Fitting a range of peaks in the spectrum..."<<endl;
+    int numGaus;
+    bool goodFit = false;
+    while(!goodFit) {
+      cout<<"Enter the number of gaussians to be fitted: ";
+      cin>>numGaus;
+      gausFit gf(numGaus);
+      gf.getHisto(phisto);
+      gf.getRanges();
+      gf.createGaus();
+      gf.fitIndividuals();
+      goodFit = gf.drawFit();
+      if(goodFit) {
+        string outname(argv[2]);
+        outname += "_peaks.txt";
+        cout<<"Writing fit info to: "<<outname<<endl;
+        gf.saveResults(outname);
+      }
+    }
+  } 
   cout<<"SPS analysis complete."<<endl;
   return 0;
 }
