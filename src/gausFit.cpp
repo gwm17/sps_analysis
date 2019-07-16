@@ -12,6 +12,7 @@ using namespace std;
 gausFit::gausFit(int numGaus) {
   nGaussians = numGaus;
   params = new Double_t[nGaussians*3];
+  spec = new TSpectrum();
 }
 
 gausFit::~gausFit() {
@@ -52,23 +53,20 @@ void gausFit::getRanges() {
 }
 
 void gausFit::createGaus() {
-  string full_func = "gaus(";
+  string full_func = "";
   for (int i=0; i<nGaussians; i++) {
     string name = "g";
     name += to_string(i);
-    full_func += to_string(i*3);
-    if(i<(nGaussians-1)) {
-      full_func += ")+gaus(";
-    } else {
-      full_func += ")";
-    }
+    full_func += "gaus("+to_string(i*3)+")+";
     char name_i[name.length()+1];
     strcpy(name_i, name.c_str());
     TF1 *gaus_i = new TF1(name_i,"gaus", min[i], max[i]);
     gaussians.push_back(gaus_i);
   }
+  full_func += "cheb3("+to_string(nGaussians*3)+")";
   char full_func_name[full_func.length()+1];
   strcpy(full_func_name, full_func.c_str());
+  quad_bckgnd = new TF1("bckgnd","cheb3",fullMin,fullMax);
   multigaus = new TF1("complete_fit",full_func_name,fullMin,fullMax);
 }
 
@@ -76,8 +74,10 @@ void gausFit::fitIndividuals() {
   for (int i=0; i<nGaussians; i++) {
     histo->Fit(gaussians[i], "R0+");
     gaussians[i]->GetParameters(&params[i*3]);
+    multigaus->SetParameter(i*3, params[i*3]);
+    multigaus->SetParameter(i*3+1, params[i*3+1]);
+    multigaus->SetParameter(i*3+2, params[i*3+2]);
   }
-  multigaus->SetParameters(params);
   histo->Fit(multigaus, "R0+");
   chisq = multigaus->GetChisquare();
   ndf = multigaus->GetNDF();
@@ -89,7 +89,7 @@ void gausFit::fitIndividuals() {
 
 bool gausFit::drawFit() {
   TCanvas *c1 = new TCanvas();
-  new_params = new Double_t[nGaussians*3];
+  new_params = new Double_t[nGaussians*3+4];
   multigaus->GetParameters(&new_params[0]);
   histo->Draw();
   multigaus->SetLineColor(kBlue);
@@ -100,6 +100,9 @@ bool gausFit::drawFit() {
     gaus->SetLineColor(kGreen);
     gaus->DrawF1(fullMax, fullMin, "same");
   }
+  quad_bckgnd->SetParameters(&new_params[nGaussians*3]);
+  quad_bckgnd->SetLineColor(kRed);
+  quad_bckgnd->Draw("same");
   while(c1->WaitPrimitive()) {}
   string answer;
   cout<<"Do you want to try again?(y/n) ";
@@ -130,7 +133,7 @@ void gausFit::saveResults(string filename) {
       Double_t centroid = gaus->GetParameter(1);
       Double_t amplitude = gaus->GetParameter(0);
       Double_t sigma = gaus->GetParameter(2);
-      Double_t area = amplitude*sigma*sqrt(2.0*TMath::Pi());
+      Double_t area = amplitude*sigma*sqrt(2.0*TMath::Pi())/BIN_WIDTH;
       outfile<<setw(10)<<gaus->GetName()<<"\t"<<amplitude<<"\t"<<centroid<<"\t"<<sigma<<"\t"
              <<area<<endl;
     }

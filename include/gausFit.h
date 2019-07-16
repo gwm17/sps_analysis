@@ -15,6 +15,7 @@
 #include <TFile.h>
 #include <TTree.h>
 #include <TCanvas.h>
+#include <TSpectrum.h>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -37,6 +38,9 @@ class gausFit {
   private:
     vector<TF1*> gaussians;
     TF1* multigaus;
+    TF1* quad_bckgnd;
+    TSpectrum *spec;
+    const float BIN_WIDTH = 0.5;
     vector<Float_t> min;
     vector<Float_t> max;
     Int_t nGaussians;
