@@ -1,4 +1,7 @@
-#sps_analysis
+# sps_analysis
+
+This repository is deprecated and no longer supported. See [here](https://github.com/sesps/SPS_SABRE_EventBuilder) for a more modern version of SPS analysis.
+
 Program to perform offline analysis of Super-Enge Splitpole data at FSU using ROOT. Takes a raw data input .root file from sps evt2root and returns a histogram .root file, a corrected .root file, and a cleaned (no background).
 
 The included Makefile will compile the program. There are three modes in which to run the analysis:
